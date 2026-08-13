@@ -1,7 +1,6 @@
 # RentStuff
 
-A dead-simple loaner/rental tracker for lending gear to friends and family —
-the truck, the Starlink, the solar bank, the trailer. Sibling project to
+A dead-simple loaner/rental tracker for lending gear to friends and family. Sibling project to
 **FreeStuff** (the giveaway board); same stack, same conventions.
 
 > v1 is **billing tracking only**: list items, take booking requests, catch
