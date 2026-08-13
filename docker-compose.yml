@@ -1,0 +1,17 @@
+services:
+  rentstuff:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:?set SECRET_KEY in your .env}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - RENTSTUFF_DB=/data/rentstuff.sqlite3
+    volumes:
+      - rentstuff-data:/data
+    restart: unless-stopped
+
+volumes:
+  rentstuff-data:

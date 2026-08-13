@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}new item — RentStuff{% endblock %}
+{% block body %}
+  <h1 class="title"><span class="dim">//</span> <span class="grn">new item</span></h1>
+  <form method="post" class="card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>name</label><input name="name" value="{{ form.get('name','') }}" required>
+    <label>slug (optional — auto from name)</label><input name="slug" value="{{ form.get('slug','') }}">
+    <label>description</label><textarea name="description" rows="2">{{ form.get('description','') }}</textarea>
+    <label>rate amount</label><input name="rate_amount" type="number" step="0.01" value="{{ form.get('rate_amount','') }}">
+    <label>rate unit</label>
+    <select name="rate_unit">
+      <option value="day">day</option><option value="week">week</option><option value="flat">flat</option>
+    </select>
+    <label>deposit amount</label><input name="deposit_amount" type="number" step="0.01" value="{{ form.get('deposit_amount','') }}">
+    <button type="submit">$ save_item</button>
+  </form>
+{% endblock %}

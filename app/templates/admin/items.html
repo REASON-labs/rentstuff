@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}items — RentStuff{% endblock %}
+{% block body %}
+  <h1 class="title"><span class="dim">//</span> <span class="grn">items</span></h1>
+  <a class="btn" href="{{ url_for('admin.item_new') }}">+ new item</a>
+  <table style="margin-top:1rem">
+    <tr><th>name</th><th>rate</th><th>active</th><th></th></tr>
+    {% for i in items %}
+      <tr>
+        <td>{{ i['name'] }}</td>
+        <td>{{ '%.2f'|format(i['rate_amount']) }} / {{ i['rate_unit'] }}</td>
+        <td>{{ 'yes' if i['is_active'] else 'no' }}</td>
+        <td>
+          <form class="inline-form" method="post" action="{{ url_for('admin.item_toggle', item_id=i['id']) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn-ghost">{{ 'hide' if i['is_active'] else 'show' }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+{% endblock %}

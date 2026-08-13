@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}login — RentStuff{% endblock %}
+{% block body %}
+  <h1 class="title"><span class="dim">//</span> <span class="grn">admin</span></h1>
+  <form method="post" class="card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>username</label>
+    <input name="username" required>
+    <label>password</label>
+    <input type="password" name="password" required>
+    <button type="submit">$ login</button>
+  </form>
+{% endblock %}

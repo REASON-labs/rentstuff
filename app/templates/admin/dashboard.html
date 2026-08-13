@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}dashboard — RentStuff{% endblock %}
+{% block body %}
+  <div class="boot">$ rentstuff --status</div>
+  <h1 class="title"><span class="dim">//</span> <span class="grn">dashboard</span></h1>
+  <nav class="top">
+    <a href="{{ url_for('admin.items') }}">items</a><span class="sep">/</span>
+    <a href="{{ url_for('admin.bookings') }}">bookings</a>
+  </nav>
+
+  <div class="card">
+    <div class="tag">[ outstanding ]</div>
+    {% if outstanding %}
+      <table>
+        <tr><th>renter</th><th>owed</th></tr>
+        {% for renter, amount in outstanding.items() %}
+          <tr><td>{{ renter }}</td><td class="owed">{{ '%.2f'|format(amount) }}</td></tr>
+        {% endfor %}
+        <tr><td><strong>total</strong></td><td class="owed">{{ '%.2f'|format(total_outstanding) }}</td></tr>
+      </table>
+    {% else %}<p class="meta">All settled up.</p>{% endif %}
+  </div>
+
+  <div class="card">
+    <div class="tag">[ needs review ]</div>
+    {% for b in requested %}
+      <div class="meta">{{ b['item_name'] }} — {{ b['renter_name'] }}
+        ({{ b['start_date'] }} → {{ b['end_date'] }}) · quote {{ '%.2f'|format(b['quoted_amount']) }}
+        <a href="{{ url_for('admin.bookings') }}">manage →</a></div>
+    {% else %}<p class="meta">No pending requests.</p>{% endfor %}
+  </div>
+
+  <div class="card">
+    <div class="tag">[ out now / returns due ]</div>
+    {% for b in active %}
+      <div class="meta">{{ b['item_name'] }} — {{ b['renter_name'] }}
+        (back {{ b['end_date'] }}){% if b in returns_due %} <span class="owed">· OVERDUE</span>{% endif %}</div>
+    {% else %}<p class="meta">Nothing out right now.</p>{% endfor %}
+  </div>
+{% endblock %}

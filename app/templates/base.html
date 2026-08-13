@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}RentStuff{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="wrap">
+    <nav class="top">
+      <a href="{{ url_for('public.index') }}"><span class="brand">RentStuff</span></a>
+      <span class="sep">/</span>
+      <a href="{{ url_for('admin.dashboard') }}">admin</a>
+      {% if session.get('is_admin') %}
+        <span class="sep">/</span>
+        <a href="{{ url_for('auth.logout') }}">logout</a>
+      {% endif %}
+    </nav>
+
+    {% with messages = get_flashed_messages() %}
+      {% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}
+    {% endwith %}
+
+    {% block body %}{% endblock %}
+  </div>
+</body>
+</html>

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}bookings — RentStuff{% endblock %}
+{% block body %}
+  <h1 class="title"><span class="dim">//</span> <span class="grn">bookings</span></h1>
+  {% for b in bookings %}
+    <div class="card">
+      <h3>{{ b['item_name'] }} — {{ b['renter_name'] }}</h3>
+      <div class="meta">
+        {{ b['start_date'] }} → {{ b['end_date'] }} ·
+        <strong>{{ b['status'] }}</strong> ·
+        quote {{ '%.2f'|format(b['quoted_amount']) }} ·
+        {% if b['is_paid'] %}<span class="grn">paid ({{ b['payment_method'] }}{% if b['payment_ref'] %} #{{ b['payment_ref'] }}{% endif %})</span>
+        {% else %}<span class="owed">unpaid</span>{% endif %}
+      </div>
+      {% if b['renter_contact'] %}<div class="meta">contact: {{ b['renter_contact'] }}</div>{% endif %}
+      {% if b['notes'] %}<div class="meta">notes: {{ b['notes'] }}</div>{% endif %}
+
+      <div style="margin-top:0.75rem; display:flex; gap:0.5rem; flex-wrap:wrap">
+        {% for s in ['confirmed','returned','cancelled'] %}
+          <form class="inline-form" method="post" action="{{ url_for('admin.booking_status', booking_id=b['id']) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="status" value="{{ s }}">
+            <button class="btn-ghost">mark {{ s }}</button>
+          </form>
+        {% endfor %}
+      </div>
+
+      {% if not b['is_paid'] %}
+        <form method="post" action="{{ url_for('admin.booking_paid', booking_id=b['id']) }}" style="margin-top:0.6rem">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>amount paid</label>
+          <input name="paid_amount" type="number" step="0.01" value="{{ '%.2f'|format(b['quoted_amount']) }}">
+          <label>method</label>
+          <select name="payment_method">
+            <option>cash</option><option>venmo</option><option value="zoho">zoho invoice</option><option>stripe</option>
+          </select>
+          <label>reference (Zoho invoice # / note)</label>
+          <input name="payment_ref">
+          <button type="submit">$ mark_paid</button>
+        </form>
+      {% endif %}
+    </div>
+  {% else %}
+    <p class="meta">No bookings yet.</p>
+  {% endfor %}
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ item['name'] }} — RentStuff{% endblock %}
+{% block body %}
+  <div class="boot"><a href="{{ url_for('public.index') }}">&larr; back</a></div>
+  <h1 class="title"><span class="grn">{{ item['name'] }}</span></h1>
+  <div class="meta">{{ '%.2f'|format(item['rate_amount']) }} / {{ item['rate_unit'] }}
+    {% if item['deposit_amount'] %} · {{ '%.0f'|format(item['deposit_amount']) }} deposit{% endif %}</div>
+  {% if item['description'] %}<p>{{ item['description'] }}</p>{% endif %}
+
+  <div class="card">
+    <div class="tag">[ request ]</div>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>your name</label>
+      <input name="renter_name" required>
+      <label>contact (phone / email / handle)</label>
+      <input name="renter_contact">
+      <label>pickup date</label>
+      <input type="date" name="start_date" required>
+      <label>return date</label>
+      <input type="date" name="end_date" required>
+      <label>notes (optional)</label>
+      <textarea name="notes" rows="2"></textarea>
+      <button type="submit">$ request_dates</button>
+    </form>
+  </div>
+{% endblock %}
