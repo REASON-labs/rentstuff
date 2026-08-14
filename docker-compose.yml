@@ -1,17 +1,22 @@
 services:
   rentstuff:
     build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - SECRET_KEY=${SECRET_KEY:?set SECRET_KEY in your .env}
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
-      - RENTSTUFF_DB=/data/rentstuff.sqlite3
+    env_file: .env
     volumes:
       - rentstuff-data:/data
     restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rentstuff.rule=Host(`rentstuff.jaybb.com`)"
+      - "traefik.http.routers.rentstuff.entrypoints=websecure"
+      - "traefik.http.routers.rentstuff.tls.certresolver=letsencrypt"
+      - "traefik.http.services.rentstuff.loadbalancer.server.port=8000"
 
 volumes:
   rentstuff-data:
+
+networks:
+  proxy:
+    external: true
