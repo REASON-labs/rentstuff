@@ -1,5 +1,9 @@
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()  # read .env if present (no-op otherwise)
+
 _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
