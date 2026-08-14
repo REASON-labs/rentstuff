@@ -1,8 +1,8 @@
 import re
 from datetime import date, datetime
 
-from flask import (Blueprint, abort, flash, redirect, render_template,
-                   request, url_for)
+from flask import (Blueprint, abort, current_app, flash, redirect,
+                   render_template, request, send_from_directory, url_for)
 
 from .. import models
 from ..availability import find_conflicts, quote_amount
@@ -64,3 +64,9 @@ def item_detail(slug):
             return redirect(url_for("public.item_detail", slug=slug))
 
     return render_template("item_detail.html", item=item)
+
+
+@bp.route("/media/<path:filename>")
+def media(filename):
+    """Serve an uploaded item photo from the upload directory."""
+    return send_from_directory(current_app.config["UPLOAD_DIR"], filename)

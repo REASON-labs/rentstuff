@@ -7,7 +7,7 @@
     <div class="thumb thumb--lg">
       <span class="aid">RS-{{ '%02d'|format(item['id']) }}</span>
       {% if item['photo_path'] %}
-        <img class="photo" src="{{ item['photo_path'] }}" alt="{{ item['name'] }}">
+        <img class="photo" src="{{ photo_src(item['photo_path']) }}" alt="{{ item['name'] }}">
       {% else %}
         {% include ['diagrams/' ~ item['slug'] ~ '.svg', 'diagrams/_default.svg'] ignore missing %}
       {% endif %}

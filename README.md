@@ -62,9 +62,12 @@ bookings (plus blackout windows) block new requests.
 ## Design
 
 A warm, industrial catalog look — `app/static/css/rentstuff.css`. Each item
-shows a line-diagram (or a photo, if `photo_path` is set); diagrams live as SVG
-partials in `app/templates/diagrams/<slug>.svg`, with `_default.svg` as the
-fallback for any item without its own.
+shows a photo if it has one, otherwise a line-diagram. Admins can upload a
+photo per item (re-encoded to WebP, capped at 1400px; iPhone HEIC supported)
+or pick from ten bundled defaults in `app/static/img/defaults/`. Diagrams live
+as SVG partials in `app/templates/diagrams/<slug>.svg`, with `_default.svg` as
+the fallback. Uploads are stored in `UPLOAD_DIR` (next to the DB) and served
+via the `/media/<file>` route.
 
 ### Seams (stubs, not built)
 

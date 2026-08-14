@@ -6,6 +6,7 @@ from werkzeug.security import generate_password_hash
 
 from . import db
 from .config import Config
+from .photos import photo_src
 
 csrf = CSRFProtect()
 
@@ -15,6 +16,8 @@ def create_app(config_object=Config):
     app.config.from_object(config_object)
 
     os.makedirs(os.path.dirname(app.config["DATABASE"]), exist_ok=True)
+    os.makedirs(app.config["UPLOAD_DIR"], exist_ok=True)
+    app.jinja_env.globals["photo_src"] = photo_src
 
     # Resolve an admin password hash if only a plaintext dev password was given.
     if not app.config.get("ADMIN_PASSWORD_HASH"):

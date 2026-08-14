@@ -85,6 +85,7 @@ All configuration is via environment variables (read from `.env`).
 | `ADMIN_PASSWORD` | dev only | `changeme` | Plaintext admin password; the app hashes it at startup. Fine for local use. |
 | `ADMIN_PASSWORD_HASH` | prod | — | A pre-computed password hash. Set this instead of `ADMIN_PASSWORD` in production. |
 | `RENTSTUFF_DB` | no | `./instance/rentstuff.sqlite3` (local) / `/data/rentstuff.sqlite3` (Docker) | Path to the SQLite file. |
+| `RENTSTUFF_UPLOADS` | no | `<db-dir>/uploads` | Where uploaded item photos are stored. Defaults next to the DB, so it persists on the same Docker volume. |
 
 **Generate a `SECRET_KEY`:**
 

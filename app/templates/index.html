@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block body %}
-  <p class="tagline">Rent the good stuff.</p>
+  <p class="tagline">Rent our stuff.</p>
   <p class="sub">Reserve what you need, pick it up, bring it back. Simple rates, booked in a couple of taps.</p>
 
   <div class="grid">
@@ -15,7 +15,7 @@
           {% endif %}
           <span class="aid">RS-{{ '%02d'|format(item['id']) }}</span>
           {% if item['photo_path'] %}
-            <img class="photo" src="{{ item['photo_path'] }}" alt="{{ item['name'] }}">
+            <img class="photo" src="{{ photo_src(item['photo_path']) }}" alt="{{ item['name'] }}">
           {% else %}
             {% include ['diagrams/' ~ item['slug'] ~ '.svg', 'diagrams/_default.svg'] ignore missing %}
           {% endif %}

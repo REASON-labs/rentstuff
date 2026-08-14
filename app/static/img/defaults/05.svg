@@ -1,0 +1,7 @@
+<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="300" fill="#efe8dc"/>
+  <rect x="14" y="14" width="372" height="272" fill="none" stroke="#6e675b" stroke-width="2" stroke-dasharray="6 6" opacity=".6"/>
+  <circle cx="150" cy="120" r="24" fill="none" stroke="#d8481a" stroke-width="6"/>
+  <path d="M60 220 L150 150 L210 200 L270 150 L340 220 Z" fill="none" stroke="#1c1b18" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+  <text x="200" y="266" font-family="'IBM Plex Mono',monospace" font-size="20" fill="#6e675b" text-anchor="middle" letter-spacing="3">IMG 05</text>
+</svg>

@@ -7,6 +7,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from .. import models
 from ..auth import login_required
 from ..availability import outstanding_by_renter
+from ..photos import DEFAULT_IMAGES, save_upload
 
 bp = Blueprint("admin", __name__)
 
@@ -14,6 +15,14 @@ bp = Blueprint("admin", __name__)
 def _slugify(name):
     s = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
     return s or "item"
+
+
+def _unique_slug(base):
+    """Derive a URL slug from the name, adding -2, -3 ... if it's taken."""
+    slug, n = base, 2
+    while models.get_item_by_slug(slug) is not None:
+        slug, n = f"{base}-{n}", n + 1
+    return slug
 
 
 @bp.route("/")
@@ -55,18 +64,26 @@ def item_new():
         name = request.form.get("name", "").strip()
         if not name:
             flash("Name is required.")
-            return render_template("admin/item_form.html", form=request.form)
+            return render_template("admin/item_form.html", form=request.form,
+                                   defaults=DEFAULT_IMAGES)
+        # image: an uploaded photo wins; otherwise a chosen default; otherwise none
+        photo_path = save_upload(request.files.get("photo"))
+        if not photo_path:
+            choice = request.form.get("default_image", "")
+            if choice in DEFAULT_IMAGES:
+                photo_path = choice
         models.create_item(
             name=name,
-            slug=_slugify(request.form.get("slug") or name),
+            slug=_unique_slug(_slugify(name)),
             description=request.form.get("description", "").strip(),
             rate_amount=float(request.form.get("rate_amount") or 0),
             rate_unit=request.form.get("rate_unit", "day"),
             deposit_amount=float(request.form.get("deposit_amount") or 0),
+            photo_path=photo_path,
         )
         flash("Item added.")
         return redirect(url_for("admin.items"))
-    return render_template("admin/item_form.html", form={})
+    return render_template("admin/item_form.html", form={}, defaults=DEFAULT_IMAGES)
 
 
 @bp.route("/items/<int:item_id>/toggle", methods=("POST",))
