@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
@@ -17,7 +17,9 @@ def _parse_date(value):
 @bp.route("/")
 def index():
     items = models.list_items(active_only=True)
-    return render_template("index.html", items=items)
+    today = date.today()
+    statuses = {i["id"]: models.current_status(i["id"], today) for i in items}
+    return render_template("index.html", items=items, statuses=statuses)
 
 
 @bp.route("/item/<slug>", methods=("GET", "POST"))

@@ -1,0 +1,9 @@
+<svg viewBox="0 0 220 120" xmlns="http://www.w3.org/2000/svg">
+  <rect class="fl" x="52" y="46" width="116" height="52" rx="10"/>
+  <rect class="ln" x="52" y="46" width="116" height="52" rx="10"/>
+  <rect class="ln" x="94" y="36" width="34" height="12" rx="4"/>
+  <circle class="ln" cx="110" cy="73" r="20"/>
+  <circle class="ln2" cx="110" cy="73" r="11"/>
+  <circle class="acf" cx="110" cy="73" r="4.5"/>
+  <rect class="ln2" x="150" y="53" width="9" height="7" rx="2"/>
+</svg>

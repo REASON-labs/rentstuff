@@ -1,15 +1,14 @@
 {% extends "base.html" %}
-{% block title %}dashboard — RentStuff{% endblock %}
+{% block title %}dashboard &mdash; RentStuff{% endblock %}
 {% block body %}
-  <div class="boot">$ rentstuff --status</div>
-  <h1 class="title"><span class="dim">//</span> <span class="grn">dashboard</span></h1>
-  <nav class="top">
-    <a href="{{ url_for('admin.items') }}">items</a><span class="sep">/</span>
+  <h1 class="title"><span class="st">//</span> dashboard</h1>
+  <nav class="meta-nav" style="margin-bottom:1.25rem">
+    <a href="{{ url_for('admin.items') }}">items</a>
     <a href="{{ url_for('admin.bookings') }}">bookings</a>
   </nav>
 
-  <div class="card">
-    <div class="tag">[ outstanding ]</div>
+  <div class="panel">
+    <h2>Outstanding</h2>
     {% if outstanding %}
       <table>
         <tr><th>renter</th><th>owed</th></tr>
@@ -21,20 +20,20 @@
     {% else %}<p class="meta">All settled up.</p>{% endif %}
   </div>
 
-  <div class="card">
-    <div class="tag">[ needs review ]</div>
+  <div class="panel">
+    <h2>Needs review</h2>
     {% for b in requested %}
-      <div class="meta">{{ b['item_name'] }} — {{ b['renter_name'] }}
-        ({{ b['start_date'] }} → {{ b['end_date'] }}) · quote {{ '%.2f'|format(b['quoted_amount']) }}
-        <a href="{{ url_for('admin.bookings') }}">manage →</a></div>
+      <p class="meta">{{ b['item_name'] }} &mdash; {{ b['renter_name'] }}
+        ({{ b['start_date'] }} &rarr; {{ b['end_date'] }}) &middot; quote {{ '%.2f'|format(b['quoted_amount']) }}
+        &middot; <a href="{{ url_for('admin.bookings') }}">manage</a></p>
     {% else %}<p class="meta">No pending requests.</p>{% endfor %}
   </div>
 
-  <div class="card">
-    <div class="tag">[ out now / returns due ]</div>
+  <div class="panel">
+    <h2>Out now / returns due</h2>
     {% for b in active %}
-      <div class="meta">{{ b['item_name'] }} — {{ b['renter_name'] }}
-        (back {{ b['end_date'] }}){% if b in returns_due %} <span class="owed">· OVERDUE</span>{% endif %}</div>
+      <p class="meta">{{ b['item_name'] }} &mdash; {{ b['renter_name'] }} (back {{ b['end_date'] }})
+        {% if b in returns_due %}<span class="owed">&middot; OVERDUE</span>{% endif %}</p>
     {% else %}<p class="meta">Nothing out right now.</p>{% endfor %}
   </div>
 {% endblock %}

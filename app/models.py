@@ -133,3 +133,20 @@ def mark_booking_paid(booking_id: int, paid_amount, method, reference=None):
         (paid_amount, method, reference, booking_id),
     )
     db.commit()
+
+
+# ---- catalog status ------------------------------------------------------
+
+def current_status(item_id: int, today):
+    """Is this item out right now? Half-open [start, end): out when
+    start_date <= today < end_date on a confirmed booking."""
+    row = get_db().execute(
+        """SELECT end_date FROM booking
+           WHERE item_id = ? AND status = 'confirmed'
+             AND start_date <= ? AND end_date > ?
+           ORDER BY end_date DESC LIMIT 1""",
+        (item_id, today, today),
+    ).fetchone()
+    if row:
+        return {"state": "out", "until": str(row["end_date"])[:10]}
+    return {"state": "available", "until": None}

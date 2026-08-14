@@ -1,0 +1,7 @@
+<svg viewBox="0 0 220 120" xmlns="http://www.w3.org/2000/svg">
+  <rect class="fl" x="54" y="54" width="112" height="46" rx="8"/>
+  <path class="ln" d="M96 44 q14 -16 28 0"/>
+  <rect class="ln" x="50" y="44" width="120" height="14" rx="6"/>
+  <rect class="ln" x="54" y="54" width="112" height="46" rx="8"/>
+  <rect class="acf" x="103" y="56" width="14" height="8" rx="2"/>
+</svg>

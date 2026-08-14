@@ -1,18 +1,19 @@
 {% extends "base.html" %}
-{% block title %}new item — RentStuff{% endblock %}
+{% block title %}new item &mdash; RentStuff{% endblock %}
 {% block body %}
-  <h1 class="title"><span class="dim">//</span> <span class="grn">new item</span></h1>
-  <form method="post" class="card">
+  <h1 class="title"><span class="st">//</span> new item</h1>
+  <form method="post" class="panel" style="max-width:520px">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label>name</label><input name="name" value="{{ form.get('name','') }}" required>
-    <label>slug (optional — auto from name)</label><input name="slug" value="{{ form.get('slug','') }}">
-    <label>description</label><textarea name="description" rows="2">{{ form.get('description','') }}</textarea>
-    <label>rate amount</label><input name="rate_amount" type="number" step="0.01" value="{{ form.get('rate_amount','') }}">
-    <label>rate unit</label>
-    <select name="rate_unit">
-      <option value="day">day</option><option value="week">week</option><option value="flat">flat</option>
-    </select>
-    <label>deposit amount</label><input name="deposit_amount" type="number" step="0.01" value="{{ form.get('deposit_amount','') }}">
-    <button type="submit">$ save_item</button>
+    <div class="field"><label>name</label><input name="name" value="{{ form.get('name','') }}" required></div>
+    <div class="field"><label>slug (optional &mdash; auto from name)</label><input name="slug" value="{{ form.get('slug','') }}"></div>
+    <div class="field"><label>description</label><textarea name="description" rows="2">{{ form.get('description','') }}</textarea></div>
+    <div class="two">
+      <div class="field"><label>rate amount</label><input name="rate_amount" type="number" step="0.01" value="{{ form.get('rate_amount','') }}"></div>
+      <div class="field"><label>rate unit</label>
+        <select name="rate_unit"><option value="day">day</option><option value="week">week</option><option value="flat">flat</option></select>
+      </div>
+    </div>
+    <div class="field"><label>deposit amount</label><input name="deposit_amount" type="number" step="0.01" value="{{ form.get('deposit_amount','') }}"></div>
+    <button class="btn" type="submit">Save item</button>
   </form>
 {% endblock %}

@@ -1,0 +1,177 @@
+/* ============================================================================
+   rentstuff.css — the "rental yard" design system
+   ----------------------------------------------------------------------------
+   Warm industrial catalog: concrete paper, ink line-work, safety-orange accent.
+   Brand-neutral and self-contained.
+
+   Theming: light by default, dark via prefers-color-scheme, and an explicit
+   [data-theme="light"|"dark"] on <html> overrides the system preference. The
+   accent orange (--rust) is identical in both modes; only surfaces and text flip.
+
+   Faces (base.html loads them):
+     Barlow Semi Condensed (600/700/800) · Barlow (400/500) · IBM Plex Mono
+   ============================================================================ */
+
+:root {
+  /* accent — fixed in both modes */
+  --rust:        #d8481a;   /* the orange: buttons, rails, hazard, wordmark    */
+  --rust-strong: #b03a12;   /* solid orange that carries white text (pills)     */
+  --on-rust:     #ffffff;
+
+  /* surfaces + text — light */
+  --paper:     #ece6da;
+  --card:      #faf7f0;
+  --ink:       #1c1b18;
+  --ink-2:     #6e675b;
+  --line:      #d8d1c2;
+  --grid:      #f3efe6;
+  --flash-bg:  #f6ddcf;
+  --rust-ink:  #b03a12;     /* orange text/accents, tuned for the surface       */
+  --rust-hover:#b03a12;     /* button hover (darken on light)                   */
+
+  --disp: "Barlow Semi Condensed", system-ui, sans-serif;
+  --body: "Barlow", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --radius: 0;
+}
+
+/* dark surfaces — darker concrete, lighter text, same orange */
+:root[data-theme="dark"] {
+  --paper:     #1b1916;
+  --card:      #24211b;
+  --ink:       #e7e1d4;
+  --ink-2:     #a59c8b;
+  --line:      #3a352d;
+  --grid:      #201d17;
+  --flash-bg:  #33251d;
+  --rust-ink:  #ec6a3e;
+  --rust-hover:#ef7043;     /* button hover (lighten on dark)                   */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:     #1b1916;
+    --card:      #24211b;
+    --ink:       #e7e1d4;
+    --ink-2:     #a59c8b;
+    --line:      #3a352d;
+    --grid:      #201d17;
+    --flash-bg:  #33251d;
+    --rust-ink:  #ec6a3e;
+    --rust-hover:#ef7043;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+img, svg { max-width: 100%; display: block; }
+a { color: inherit; text-decoration: none; }
+
+:focus-visible { outline: 2px solid var(--rust); outline-offset: 2px; }
+::selection { background: var(--rust); color: var(--on-rust); }
+
+/* ---- layout ------------------------------------------------------------ */
+.page { max-width: 980px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+/* ---- masthead ---------------------------------------------------------- */
+.mast { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.brand { font-family: var(--disp); font-weight: 800; font-size: 2.9rem; line-height: .9; letter-spacing: .01em; text-transform: uppercase; }
+.brand .st { color: var(--rust); }
+.meta-nav { font-family: var(--mono); font-size: .72rem; color: var(--ink-2); letter-spacing: .02em; display: flex; gap: 1rem; align-items: center; }
+.meta-nav a:hover { color: var(--rust); }
+.theme-toggle { font-family: var(--mono); font-size: .72rem; text-transform: lowercase; letter-spacing: .02em; color: var(--ink-2); background: transparent; border: 1px solid var(--line); padding: .18rem .5rem; cursor: pointer; }
+.theme-toggle:hover { color: var(--rust); border-color: var(--rust); }
+.hazard { height: 7px; margin: 1rem 0 1.5rem; background: repeating-linear-gradient(-45deg, var(--rust) 0 10px, var(--ink) 10px 20px); }
+
+/* ---- typography -------------------------------------------------------- */
+.tagline { font-family: var(--disp); font-weight: 700; font-size: 1.7rem; line-height: 1; color: var(--rust); text-transform: uppercase; letter-spacing: .01em; margin: 0 0 .45rem; }
+.sub { font-size: .95rem; color: var(--ink-2); max-width: 54ch; margin: 0 0 1.75rem; }
+.title { font-family: var(--disp); font-weight: 700; font-size: 1.6rem; text-transform: uppercase; letter-spacing: .01em; margin: 0 0 1.25rem; }
+.title .st { color: var(--rust); }
+.back { font-family: var(--mono); font-size: .74rem; color: var(--ink-2); margin: 0 0 1.25rem; }
+.back a:hover { color: var(--rust); }
+
+/* ---- catalog grid ------------------------------------------------------ */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 1.1rem; }
+.item { background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--rust); display: flex; flex-direction: column; }
+
+.thumb {
+  position: relative; aspect-ratio: 4 / 3; border-bottom: 1px solid var(--line);
+  background-color: var(--grid);
+  background-image: linear-gradient(var(--line) .5px, transparent .5px),
+                    linear-gradient(90deg, var(--line) .5px, transparent .5px);
+  background-size: 18px 18px; background-position: center; overflow: hidden;
+}
+.thumb svg { position: absolute; inset: 0; width: 100%; height: 100%; padding: 14% 12%; }
+.thumb .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; padding: 0; }
+.thumb--lg { aspect-ratio: 4 / 3; }
+
+.pill { position: absolute; top: .6rem; left: .6rem; font-family: var(--mono); font-size: .62rem; font-weight: 500; text-transform: uppercase; letter-spacing: .07em; padding: .28rem .5rem; }
+.pill.avail { background: var(--rust-strong); color: var(--on-rust); }
+.pill.out   { background: var(--line); color: var(--ink-2); }
+.aid { position: absolute; top: .6rem; right: .6rem; font-family: var(--mono); font-size: .62rem; color: var(--rust-ink); letter-spacing: .05em; }
+
+.body { padding: .95rem 1rem 1.05rem; display: flex; flex-direction: column; flex: 1; }
+.name { font-family: var(--disp); font-weight: 700; font-size: 1.4rem; line-height: 1; margin: 0 0 .7rem; }
+.name--lg { font-size: 2rem; margin-bottom: .8rem; }
+.spec { font-family: var(--mono); font-size: .74rem; color: var(--ink); border-top: 1px dashed var(--line); padding-top: .7rem; margin-bottom: .9rem; display: flex; flex-wrap: wrap; gap: .15rem .6rem; }
+.spec .rate { color: var(--rust-ink); font-weight: 500; }
+.spec .k { color: var(--ink-2); }
+
+.actions { display: flex; gap: .6rem; margin-top: auto; flex-wrap: wrap; }
+
+/* ---- buttons (work on <a> and <button>) -------------------------------- */
+.btn { display: inline-block; font-family: var(--disp); font-weight: 600; font-size: .9rem; text-transform: uppercase; letter-spacing: .03em; padding: .55rem 1rem; cursor: pointer; border: 1px solid var(--rust); background: var(--rust); color: var(--on-rust); }
+.btn:hover { background: var(--rust-hover); border-color: var(--rust-hover); }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn.ghost:hover { border-color: var(--ink); color: var(--ink); }
+.btn.dis { background: transparent; color: var(--ink-2); border-color: var(--line); cursor: default; }
+
+/* ---- detail view ------------------------------------------------------- */
+.detail { display: grid; grid-template-columns: minmax(0, 340px) 1fr; gap: 1.75rem; align-items: start; }
+.detail .thumb { border: 1px solid var(--line); border-top: 3px solid var(--rust); }
+@media (max-width: 640px) { .detail { grid-template-columns: 1fr; } }
+
+/* ---- forms ------------------------------------------------------------- */
+.reserve { margin-top: 1.25rem; }
+.field { margin-bottom: .75rem; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+label { display: block; font-family: var(--mono); font-size: .72rem; color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 .3rem; }
+input, textarea, select {
+  width: 100%; background: var(--card); color: var(--ink); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: .55rem .6rem; font-family: var(--body); font-size: .92rem;
+  transition: border-color 140ms ease;
+}
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--rust); }
+::placeholder { color: var(--ink-2); opacity: .7; }
+
+/* ---- admin panels / tables -------------------------------------------- */
+.panel { background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--rust); padding: 1.1rem 1.15rem; margin-bottom: 1rem; }
+.panel h2 { font-family: var(--disp); font-weight: 700; font-size: 1.05rem; text-transform: uppercase; letter-spacing: .03em; color: var(--rust-ink); margin: 0 0 .75rem; }
+.meta { font-family: var(--mono); font-size: .76rem; color: var(--ink-2); }
+table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: .78rem; }
+th, td { text-align: left; padding: .5rem .55rem; border-bottom: 1px solid var(--line); }
+th { color: var(--ink-2); font-weight: 400; text-transform: uppercase; letter-spacing: .03em; }
+.owed { color: var(--rust-ink); font-weight: 500; }
+.inline-form { display: inline; }
+
+/* ---- flash ------------------------------------------------------------- */
+.flash { border: 1px solid var(--rust); border-left-width: 3px; color: var(--rust-ink); background: var(--flash-bg); padding: .6rem .9rem; font-size: .88rem; margin-bottom: 1rem; }
+.flash--error { border-color: var(--rust-strong); }
+
+/* ---- footer ------------------------------------------------------------ */
+.foot { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line); font-family: var(--mono); font-size: .7rem; color: var(--ink-2); display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem; }
+
+/* ---- shared svg diagram strokes (used by the item partials) ------------ */
+svg .ln  { fill: none; stroke: var(--ink);   stroke-width: 3;   stroke-linecap: round; stroke-linejoin: round; }
+svg .ln2 { fill: none; stroke: var(--ink-2); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+svg .fl  { fill: var(--ink); opacity: .05; }
+svg .ac  { fill: none; stroke: var(--rust);  stroke-width: 3;   stroke-linecap: round; stroke-linejoin: round; }
+svg .acf { fill: var(--rust); }

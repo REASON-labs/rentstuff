@@ -1,0 +1,7 @@
+<svg viewBox="0 0 220 120" xmlns="http://www.w3.org/2000/svg">
+  <path class="fl" d="M110 36 L58 94 L162 94 Z"/>
+  <path class="ln" d="M110 36 L58 94 L162 94 Z"/>
+  <path class="ln2" d="M110 94 L98 64 M110 94 L122 64"/>
+  <path class="ln" d="M110 36 L110 24"/>
+  <path class="acf" d="M110 24 L128 29 L110 34 Z"/>
+</svg>

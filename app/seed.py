@@ -1,17 +1,13 @@
-"""Insert a few sample items so a fresh install has something to look at.
+"""Insert a few generic sample items so a fresh install has something to show.
 Run with:  flask --app wsgi seed"""
 from . import models
 from .db import get_db
 
 SAMPLE_ITEMS = [
-    ("Ford F-150", "truck", "Half-ton pickup. Great for hauling and dump runs.",
-     45, "day", 100),
-    ("Starlink (Roam)", "starlink", "Portable dish + router. Internet anywhere.",
-     15, "day", 50),
-    ("Solar Battery Bank", "solar-battery", "Off-grid power for camping or outages.",
-     20, "day", 40),
-    ("Utility Trailer", "trailer", "5x8 open trailer. Bring your own straps.",
-     25, "day", 75),
+    ("Mountain Bike", "bike", "A hardtail trail bike, tuned and ready to ride.", 12, "day", 40),
+    ("Camping Tent", "tent", "Four-person tent, quick to pitch, packs down small.", 10, "day", 30),
+    ("Camera Kit", "camera", "Mirrorless body, two lenses, and spare batteries.", 18, "day", 60),
+    ("Cooler", "cooler", "48-quart cooler that holds ice for days.", 6, "day", 15),
 ]
 
 

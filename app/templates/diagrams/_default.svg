@@ -1,0 +1,7 @@
+<svg viewBox="0 0 220 120" xmlns="http://www.w3.org/2000/svg">
+  <path class="fl" d="M62 40 L158 40 L158 96 L62 96 Z"/>
+  <rect class="ln" x="62" y="40" width="96" height="56" rx="4"/>
+  <path class="ln2" d="M62 58 L158 58 M62 78 L158 78"/>
+  <circle class="ln2" cx="110" cy="30" r="7"/>
+  <path class="ln2" d="M110 37 L110 40"/>
+</svg>
