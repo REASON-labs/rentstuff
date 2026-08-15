@@ -86,6 +86,9 @@ All configuration is via environment variables (read from `.env`).
 | `ADMIN_PASSWORD_HASH` | prod | — | A pre-computed password hash. Set this instead of `ADMIN_PASSWORD` in production. |
 | `RENTSTUFF_DB` | no | `./instance/rentstuff.sqlite3` (local) / `/data/rentstuff.sqlite3` (Docker) | Path to the SQLite file. |
 | `RENTSTUFF_UPLOADS` | no | `<db-dir>/uploads` | Where uploaded item photos are stored. Defaults next to the DB, so it persists on the same Docker volume. |
+| `MAILGUN_API_KEY` / `MAILGUN_DOMAIN` | no | — | Enable email. Unset = email is a no-op. |
+| `MAIL_FROM` | no | `postmaster@<domain>` | From address for notifications. |
+| `ADMIN_EMAIL` | no | — | Where admin notifications go (the Settings page can override). |
 
 **Generate a `SECRET_KEY`:**
 

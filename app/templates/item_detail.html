@@ -24,12 +24,16 @@
       <form method="post" class="reserve">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="field"><label>your name</label><input name="renter_name" required></div>
-        <div class="field"><label>contact (phone / email / handle)</label><input name="renter_contact"></div>
+        <div class="two">
+          <div class="field"><label>email</label><input name="renter_email" type="email"></div>
+          <div class="field"><label>phone / handle (optional)</label><input name="renter_contact"></div>
+        </div>
         <div class="two">
           <div class="field"><label>pickup date</label><input type="date" name="start_date" required></div>
           <div class="field"><label>return date</label><input type="date" name="end_date" required></div>
         </div>
         <div class="field"><label>notes (optional)</label><textarea name="notes" rows="2"></textarea></div>
+        <label class="chk agree"><input type="checkbox" name="agree" value="1" required> {{ agreement_text }}</label>
         <button class="btn" type="submit">Reserve these dates</button>
       </form>
     </div>

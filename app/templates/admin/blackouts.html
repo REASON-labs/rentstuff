@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}blackouts &mdash; {{ item['name'] }}{% endblock %}
+{% block body %}
+  <p class="back"><a href="{{ url_for('admin.items') }}">&larr; items</a></p>
+  <h1 class="title"><span class="st">//</span> blackouts &mdash; {{ item['name'] }}</h1>
+  <p class="img-help">Dates the item is unavailable (maintenance, personal use). These block reservation requests just like a confirmed booking.</p>
+
+  <div class="panel">
+    <h2>Current</h2>
+    {% for b in blackouts %}
+      <p class="meta">{{ b['start_date'] }} &rarr; {{ b['end_date'] }}{% if b['reason'] %} &middot; {{ b['reason'] }}{% endif %}
+        <form class="inline-form" method="post" action="{{ url_for('admin.blackout_delete', blackout_id=b['id']) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="item_id" value="{{ item['id'] }}">
+          <button class="btn ghost">remove</button>
+        </form>
+      </p>
+    {% else %}<p class="meta">None yet.</p>{% endfor %}
+  </div>
+
+  <form method="post" class="panel" style="max-width:520px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h2>Add a blackout</h2>
+    <div class="two">
+      <div class="field"><label>start date</label><input type="date" name="start_date" required></div>
+      <div class="field"><label>end date</label><input type="date" name="end_date" required></div>
+    </div>
+    <div class="field"><label>reason (optional)</label><input name="reason"></div>
+    <button class="btn" type="submit">Add blackout</button>
+  </form>
+{% endblock %}

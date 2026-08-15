@@ -17,9 +17,10 @@ pip install -r requirements-dev.txt   # picks up any new deps
 pytest -q                             # should be all green
 ```
 
-> **This update adds dependencies** — `Pillow` and `pillow-heif` (image
-> processing + iPhone HEIC support). A plain `git pull` on the server is not
-> enough; the deploy step below rebuilds so they get installed.
+> **When an update adds or bumps dependencies** (a prior one added `Pillow` /
+> `pillow-heif`), a plain `git pull` on the server isn't enough — the rebuild
+> in the deploy step installs them. The email layer uses only the standard
+> library, so it adds nothing.
 
 ## 2. Commit and push
 
@@ -42,8 +43,8 @@ docker compose up -d --build          # --build is required when deps change
 ```
 
 - The container entrypoint runs `flask --app wsgi init-db` on start. It's
-  idempotent (`CREATE TABLE IF NOT EXISTS`), so it's safe every deploy. **This
-  update has no schema change**, so nothing migrates.
+  idempotent, and it now also adds any new columns to an existing database
+  (the `renter_email` / `agreed_terms` columns on `booking`). Safe every deploy.
 - **Data survives the rebuild.** The SQLite database *and* uploaded photos both
   live on the `rentstuff-data` volume (`UPLOAD_DIR` defaults next to the DB), so
   rebuilding the image doesn't touch them. No compose change is needed for the

@@ -3,10 +3,16 @@
   <p class="tagline">Rent our stuff.</p>
   <p class="sub">Reserve what you need, pick it up, bring it back. Simple rates, booked in a couple of taps.</p>
 
+  <div class="filters" id="filters">
+    <span class="on" data-filter="all">All gear</span>
+    <span data-filter="available">Available</span>
+    <span data-filter="out">Out</span>
+  </div>
+
   <div class="grid">
     {% for item in items %}
       {% set st = statuses[item['id']] %}
-      <article class="item">
+      <article class="item" data-status="{{ st.state }}">
         <div class="thumb">
           {% if st.state == 'available' %}
             <span class="pill avail">Available</span>
@@ -40,4 +46,18 @@
       <p class="sub">No gear listed yet.</p>
     {% endfor %}
   </div>
+  <script>
+  (function(){
+    var fs = document.getElementById('filters'); if(!fs) return;
+    var items = document.querySelectorAll('.grid .item');
+    fs.addEventListener('click', function(e){
+      var b = e.target.closest('[data-filter]'); if(!b) return;
+      fs.querySelectorAll('[data-filter]').forEach(function(x){ x.classList.toggle('on', x===b); });
+      var f = b.getAttribute('data-filter');
+      items.forEach(function(it){
+        it.style.display = (f==='all' || it.getAttribute('data-status')===f) ? '' : 'none';
+      });
+    });
+  })();
+  </script>
 {% endblock %}

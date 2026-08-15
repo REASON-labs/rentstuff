@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}settings &mdash; RentStuff{% endblock %}
+{% block body %}
+  <h1 class="title"><span class="st">//</span> settings</h1>
+  <form method="post" class="panel" style="max-width:600px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <h2>Email notifications</h2>
+    <p class="img-help">Emails send only when Mailgun is configured (see INSTALL). Toggle each event here.</p>
+    <label class="chk"><input type="checkbox" name="notify_on_request" {% if toggles['notify_on_request'] %}checked{% endif %}> New request &rarr; email me + confirmation to renter</label>
+    <label class="chk"><input type="checkbox" name="notify_on_confirm" {% if toggles['notify_on_confirm'] %}checked{% endif %}> Confirm &rarr; email renter + notice to me</label>
+    <label class="chk"><input type="checkbox" name="notify_on_paid" {% if toggles['notify_on_paid'] %}checked{% endif %}> Mark paid &rarr; receipt to renter + me</label>
+
+    <div class="field" style="margin-top:1rem"><label>admin email (where my notifications go)</label>
+      <input name="admin_email" type="email" value="{{ admin_email }}" placeholder="you@example.com"></div>
+
+    <h2 style="margin-top:1.5rem">Rental terms</h2>
+    <p class="img-help">Shown as the agreement checkbox on the request form.</p>
+    <div class="field"><textarea name="agreement_text" rows="3">{{ agreement_text }}</textarea></div>
+
+    <p class="img-help">Editing the wording of individual email templates is coming later; for now they use sensible defaults.</p>
+    <button class="btn" type="submit">Save settings</button>
+  </form>
+{% endblock %}

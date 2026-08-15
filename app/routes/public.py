@@ -4,8 +4,9 @@ from datetime import date, datetime
 from flask import (Blueprint, abort, current_app, flash, redirect,
                    render_template, request, send_from_directory, url_for)
 
-from .. import models
+from .. import mail, models
 from ..availability import find_conflicts, quote_amount
+from ..models import DEFAULT_AGREEMENT
 
 bp = Blueprint("public", __name__)
 
@@ -31,10 +32,13 @@ def item_detail(slug):
     if request.method == "POST":
         renter_name = request.form.get("renter_name", "").strip()
         renter_contact = request.form.get("renter_contact", "").strip()
+        renter_email = request.form.get("renter_email", "").strip()
         notes = request.form.get("notes", "").strip()
         errors = []
         if not renter_name:
             errors.append("Please add your name.")
+        if not request.form.get("agree"):
+            errors.append("Please accept the rental terms to continue.")
         try:
             start = _parse_date(request.form["start_date"])
             end = _parse_date(request.form["end_date"])
@@ -54,16 +58,19 @@ def item_detail(slug):
                 flash(e)
         else:
             quote = quote_amount(item["rate_amount"], item["rate_unit"], start, end)
-            models.create_booking(
+            booking_id = models.create_booking(
                 item_id=item["id"], renter_name=renter_name,
-                renter_contact=renter_contact, start_date=start, end_date=end,
-                quoted_amount=quote, deposit_amount=item["deposit_amount"],
-                notes=notes, status="requested",
+                renter_contact=renter_contact, renter_email=renter_email,
+                start_date=start, end_date=end, quoted_amount=quote,
+                deposit_amount=item["deposit_amount"], notes=notes,
+                status="requested", agreed_terms=1,
             )
+            mail.notify_new_request(booking_id)
             flash("Request sent — you'll get a confirmation once it's approved.")
             return redirect(url_for("public.item_detail", slug=slug))
 
-    return render_template("item_detail.html", item=item)
+    agreement_text = models.get_setting("agreement_text", DEFAULT_AGREEMENT)
+    return render_template("item_detail.html", item=item, agreement_text=agreement_text)
 
 
 @bp.route("/media/<path:filename>")

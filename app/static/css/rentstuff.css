@@ -186,3 +186,22 @@ svg .ln2 { fill: none; stroke: var(--ink-2); stroke-width: 2.2; stroke-linecap: 
 svg .fl  { fill: var(--ink); opacity: .05; }
 svg .ac  { fill: none; stroke: var(--rust);  stroke-width: 3;   stroke-linecap: round; stroke-linejoin: round; }
 svg .acf { fill: var(--rust); }
+
+/* interactive filter row */
+.filters { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.5rem; font-family: var(--mono); font-size: .72rem; }
+.filters span { border: 1px solid var(--line); padding: .35rem .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-2); background: var(--card); cursor: pointer; user-select: none; }
+.filters span.on { border-color: var(--rust); color: var(--rust); }
+
+/* checkboxes / agreement */
+.chk { display: flex; gap: .5rem; align-items: flex-start; font-family: var(--body); font-size: .86rem; color: var(--ink); text-transform: none; letter-spacing: 0; margin: .5rem 0; cursor: pointer; }
+.chk input { width: auto; margin-top: .15rem; }
+.agree { border: 1px solid var(--line); background: var(--card); padding: .7rem .8rem; margin: 1rem 0; color: var(--ink-2); }
+
+/* current photo on edit */
+.cur-photo { display: flex; gap: .8rem; align-items: center; margin-bottom: .6rem; }
+.cur-photo img { width: 88px; height: 66px; object-fit: cover; border: 1px solid var(--line); }
+
+/* admin item row actions */
+.row-actions { display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; }
+.row-actions a { font-family: var(--mono); font-size: .74rem; }
+.row-actions a:hover { color: var(--rust); }

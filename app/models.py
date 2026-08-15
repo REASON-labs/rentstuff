@@ -7,6 +7,11 @@ from datetime import date, datetime
 from .availability import Interval, BLOCKING_STATUSES
 from .db import get_db
 
+DEFAULT_AGREEMENT = (
+    "I agree to return this item on time and in the condition I received it, "
+    "and I understand I'm responsible for any loss or damage while it's in my care."
+)
+
 
 # ---- items ---------------------------------------------------------------
 
@@ -78,14 +83,16 @@ def blocking_intervals_for_item(item_id: int) -> list[Interval]:
 # ---- bookings ------------------------------------------------------------
 
 def create_booking(item_id, renter_name, renter_contact, start_date, end_date,
-                   quoted_amount, deposit_amount, notes="", status="requested"):
+                   quoted_amount, deposit_amount, notes="", status="requested",
+                   renter_email="", agreed_terms=0):
     db = get_db()
     cur = db.execute(
-        """INSERT INTO booking (item_id, renter_name, renter_contact, start_date,
-                                end_date, status, quoted_amount, deposit_amount, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (item_id, renter_name, renter_contact, start_date, end_date, status,
-         quoted_amount, deposit_amount, notes),
+        """INSERT INTO booking (item_id, renter_name, renter_contact, renter_email,
+                                start_date, end_date, status, quoted_amount,
+                                deposit_amount, notes, agreed_terms)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (item_id, renter_name, renter_contact, renter_email, start_date, end_date,
+         status, quoted_amount, deposit_amount, notes, int(bool(agreed_terms))),
     )
     db.commit()
     return cur.lastrowid
@@ -150,3 +157,77 @@ def current_status(item_id: int, today):
     if row:
         return {"state": "out", "until": str(row["end_date"])[:10]}
     return {"state": "available", "until": None}
+
+
+# ---- item update -----------------------------------------------------------
+
+def update_item(item_id, name, description, rate_amount, rate_unit,
+                deposit_amount, photo_path):
+    """Update an item. Slug is intentionally left unchanged (it's in the public
+    URL). photo_path is written as given — the route decides keep/replace/clear."""
+    db = get_db()
+    db.execute(
+        """UPDATE item SET name = ?, description = ?, rate_amount = ?,
+                           rate_unit = ?, deposit_amount = ?, photo_path = ?
+           WHERE id = ?""",
+        (name, description, rate_amount, rate_unit, deposit_amount, photo_path, item_id),
+    )
+    db.commit()
+
+
+# ---- confirm-time re-check -------------------------------------------------
+
+def confirmed_intervals_excluding(item_id, booking_id):
+    """Blocking intervals (confirmed bookings + blackouts) for an item, ignoring
+    one booking — used to re-check a booking before confirming it."""
+    db = get_db()
+    rows = db.execute(
+        """SELECT start_date, end_date FROM booking
+           WHERE item_id = ? AND status = 'confirmed' AND id != ?""",
+        (item_id, booking_id),
+    ).fetchall()
+    blackouts = db.execute(
+        "SELECT start_date, end_date FROM blackout WHERE item_id = ?", (item_id,)
+    ).fetchall()
+    return [Interval(_to_date(r["start_date"]), _to_date(r["end_date"]))
+            for r in list(rows) + list(blackouts)]
+
+
+# ---- blackouts -------------------------------------------------------------
+
+def list_blackouts(item_id):
+    return get_db().execute(
+        "SELECT * FROM blackout WHERE item_id = ? ORDER BY start_date", (item_id,)
+    ).fetchall()
+
+
+def create_blackout(item_id, start_date, end_date, reason=""):
+    db = get_db()
+    db.execute(
+        "INSERT INTO blackout (item_id, start_date, end_date, reason) VALUES (?, ?, ?, ?)",
+        (item_id, start_date, end_date, reason),
+    )
+    db.commit()
+
+
+def delete_blackout(blackout_id):
+    db = get_db()
+    db.execute("DELETE FROM blackout WHERE id = ?", (blackout_id,))
+    db.commit()
+
+
+# ---- settings (key/value) --------------------------------------------------
+
+def get_setting(key, default=""):
+    row = get_db().execute("SELECT value FROM setting WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row is not None else default
+
+
+def set_setting(key, value):
+    db = get_db()
+    db.execute(
+        """INSERT INTO setting (key, value) VALUES (?, ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+        (key, str(value)),
+    )
+    db.commit()

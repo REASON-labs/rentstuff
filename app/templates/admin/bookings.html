@@ -2,6 +2,7 @@
 {% block title %}bookings &mdash; RentStuff{% endblock %}
 {% block body %}
   <h1 class="title"><span class="st">//</span> bookings</h1>
+  <a class="btn" href="{{ url_for('admin.booking_new') }}" style="margin-bottom:1rem">+ add booking</a>
   {% for b in bookings %}
     <div class="panel">
       <h2>{{ b['item_name'] }} &mdash; {{ b['renter_name'] }}</h2>

@@ -11,7 +11,9 @@
           <td>{{ i['name'] }}</td>
           <td>{{ '%g'|format(i['rate_amount']) }} / {{ i['rate_unit'] }}</td>
           <td>{{ 'yes' if i['is_active'] else 'no' }}</td>
-          <td>
+          <td class="row-actions">
+            <a href="{{ url_for('admin.item_edit', item_id=i['id']) }}">edit</a>
+            <a href="{{ url_for('admin.item_blackouts', item_id=i['id']) }}">blackouts</a>
             <form class="inline-form" method="post" action="{{ url_for('admin.item_toggle', item_id=i['id']) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn ghost">{{ 'hide' if i['is_active'] else 'show' }}</button>

@@ -1,4 +1,5 @@
 -- RentStuff schema. Non-destructive: safe to re-run (idempotent).
+-- New columns on existing databases are added by db._ensure_columns().
 
 CREATE TABLE IF NOT EXISTS item (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,18 +19,18 @@ CREATE TABLE IF NOT EXISTS booking (
   item_id        INTEGER NOT NULL REFERENCES item(id) ON DELETE CASCADE,
   renter_name    TEXT    NOT NULL,
   renter_contact TEXT    NOT NULL DEFAULT '',
+  renter_email   TEXT    NOT NULL DEFAULT '',
   start_date     DATE    NOT NULL,
   end_date       DATE    NOT NULL,
   status         TEXT    NOT NULL DEFAULT 'requested', -- requested|confirmed|returned|cancelled
   quoted_amount  REAL    NOT NULL DEFAULT 0,
   deposit_amount REAL    NOT NULL DEFAULT 0,
   notes          TEXT    NOT NULL DEFAULT '',
-  -- billing tracking (folded into booking for v1; split to a payments table
-  -- only when Stripe or partial payments arrive)
+  agreed_terms   INTEGER NOT NULL DEFAULT 0,
   is_paid        INTEGER NOT NULL DEFAULT 0,
   paid_amount    REAL    NOT NULL DEFAULT 0,
-  payment_method TEXT,                              -- cash|venmo|zoho|stripe|...
-  payment_ref    TEXT,                              -- Zoho invoice # now, Stripe id later
+  payment_method TEXT,
+  payment_ref    TEXT,
   paid_at        TEXT,
   created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -40,6 +41,11 @@ CREATE TABLE IF NOT EXISTS blackout (
   start_date DATE    NOT NULL,
   end_date   DATE    NOT NULL,
   reason     TEXT    NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS setting (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_booking_item   ON booking(item_id);

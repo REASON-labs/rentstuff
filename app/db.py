@@ -25,10 +25,28 @@ def close_db(e=None):
         db.close()
 
 
+# Columns added after v1; brought onto existing databases idempotently.
+_ADDED_COLUMNS = {
+    "booking": [
+        ("renter_email", "TEXT NOT NULL DEFAULT ''"),
+        ("agreed_terms", "INTEGER NOT NULL DEFAULT 0"),
+    ],
+}
+
+
+def _ensure_columns(db):
+    for table, cols in _ADDED_COLUMNS.items():
+        have = {r["name"] for r in db.execute(f"PRAGMA table_info({table})")}
+        for name, decl in cols:
+            if name not in have:
+                db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+
+
 def init_db():
     db = get_db()
     with current_app.open_resource("schema.sql") as f:
         db.executescript(f.read().decode("utf-8"))
+    _ensure_columns(db)
     db.commit()
 
 
