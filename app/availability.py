@@ -9,12 +9,29 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from math import ceil
 
 # Statuses that hard-block a date range for an item. 'requested' is intentionally
 # NOT here: pending requests are surfaced as soft warnings, not conflicts.
 BLOCKING_STATUSES = ("confirmed",)
+
+
+def to_date(value) -> date:
+    """Coerce a date, a datetime, or a 'YYYY-MM-DD...' string to a date.
+
+    Dates reach us from three directions — form fields (strings), SQLite rows
+    (strings or dates, depending on the adapter) and code (real dates) — so
+    every layer needs the same coercion. It lives here so there is exactly one.
+
+    Raises ValueError on anything unparseable, which callers turn into a
+    user-facing message rather than a 500.
+    """
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
 
 
 @dataclass(frozen=True)
@@ -62,7 +79,17 @@ def find_conflicts(new_start: date, new_end: date, blocking_intervals) -> list[I
 
 
 def _field(row, name):
-    return row[name] if isinstance(row, dict) else getattr(row, name)
+    """Read a field from a mapping, a sqlite3.Row, or a plain object.
+
+    The isinstance(row, dict) test this used to do was wrong for the app's real
+    input: sqlite3.Row is subscriptable but is NOT a dict and has no attributes,
+    so every live call fell through to getattr() and raised. Try subscripting
+    first and fall back to attributes, which covers all three shapes.
+    """
+    try:
+        return row[name]
+    except (TypeError, KeyError, IndexError):
+        return getattr(row, name)
 
 
 def outstanding_by_renter(bookings) -> dict[str, float]:

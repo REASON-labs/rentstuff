@@ -2,9 +2,7 @@
 scheduling/billing math lives in availability.py."""
 from __future__ import annotations
 
-from datetime import date, datetime
-
-from .availability import Interval, BLOCKING_STATUSES
+from .availability import BLOCKING_STATUSES, Interval, to_date
 from .db import get_db
 
 DEFAULT_AGREEMENT = (
@@ -45,6 +43,20 @@ def create_item(name, slug, description, rate_amount, rate_unit,
     return cur.lastrowid
 
 
+def update_item(item_id, name, description, rate_amount, rate_unit,
+                deposit_amount, photo_path):
+    """Update an item. Slug is intentionally left unchanged (it's in the public
+    URL). photo_path is written as given — the route decides keep/replace/clear."""
+    db = get_db()
+    db.execute(
+        """UPDATE item SET name = ?, description = ?, rate_amount = ?,
+                           rate_unit = ?, deposit_amount = ?, photo_path = ?
+           WHERE id = ?""",
+        (name, description, rate_amount, rate_unit, deposit_amount, photo_path, item_id),
+    )
+    db.commit()
+
+
 def set_item_active(item_id: int, is_active: bool):
     db = get_db()
     db.execute("UPDATE item SET is_active = ? WHERE id = ?",
@@ -52,30 +64,84 @@ def set_item_active(item_id: int, is_active: bool):
     db.commit()
 
 
+def count_bookings_for_item(item_id: int) -> int:
+    """How many bookings reference this item, in any status. Deleting an item
+    would orphan its rental history, so this is the guard on that."""
+    row = get_db().execute(
+        "SELECT COUNT(*) AS n FROM booking WHERE item_id = ?", (item_id,)
+    ).fetchone()
+    return row["n"]
+
+
+def all_photo_paths() -> set[str]:
+    """Every photo_path any item points at — the reference set the upload
+    pruner diffs the upload directory against."""
+    rows = get_db().execute(
+        "SELECT photo_path FROM item WHERE photo_path IS NOT NULL AND photo_path != ''"
+    ).fetchall()
+    return {r["photo_path"] for r in rows}
+
+
+def booking_counts_by_item() -> dict[int, int]:
+    """{item_id: booking count} for every item that has any — one query, so the
+    items list can show what's deletable without going N+1."""
+    rows = get_db().execute(
+        "SELECT item_id, COUNT(*) AS n FROM booking GROUP BY item_id"
+    ).fetchall()
+    return {r["item_id"]: r["n"] for r in rows}
+
+
+def delete_item_if_unbooked(item_id: int) -> bool:
+    """Delete an item and its blackouts, but only while it has no bookings.
+    Returns True if it was deleted, False if bookings held it back.
+
+    The guard is in the SQL rather than in the route on purpose. booking.item_id
+    is ON DELETE CASCADE, so a check-then-delete pair has a window: a public
+    request that commits between the two turns the delete into a silent cascade
+    that destroys the very booking that should have prevented it. One
+    conditional statement can't be raced that way.
+    """
+    db = get_db()
+    cur = db.execute(
+        """DELETE FROM item
+           WHERE id = ?
+             AND NOT EXISTS (SELECT 1 FROM booking WHERE item_id = ?)""",
+        (item_id, item_id),
+    )
+    if cur.rowcount == 0:
+        db.rollback()
+        return False
+    db.execute("DELETE FROM blackout WHERE item_id = ?", (item_id,))
+    db.commit()
+    return True
+
+
 # ---- blocking intervals (bookings + blackouts) ---------------------------
 
-def _to_date(value) -> date:
-    if isinstance(value, date):
-        return value
-    return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
+def blocking_intervals_for_item(item_id: int,
+                                exclude_booking_id: int | None = None) -> list[Interval]:
+    """Everything that hard-blocks a date range for this item: bookings in a
+    BLOCKING_STATUS plus blackout windows.
 
-
-def blocking_intervals_for_item(item_id: int) -> list[Interval]:
-    """Confirmed bookings + blackout windows — everything that hard-blocks
-    a new request for this item."""
+    exclude_booking_id ignores a single booking, which is what the confirm-time
+    re-check needs so a pending booking doesn't collide with itself.
+    """
     db = get_db()
     placeholders = ",".join("?" for _ in BLOCKING_STATUSES)
-    rows = db.execute(
-        f"""SELECT start_date, end_date FROM booking
-            WHERE item_id = ? AND status IN ({placeholders})""",
-        (item_id, *BLOCKING_STATUSES),
-    ).fetchall()
+    sql = f"""SELECT start_date, end_date FROM booking
+              WHERE item_id = ? AND status IN ({placeholders})"""
+    params: list = [item_id, *BLOCKING_STATUSES]
+    if exclude_booking_id is not None:
+        sql += " AND id != ?"
+        params.append(exclude_booking_id)
+
+    rows = db.execute(sql, params).fetchall()
     blackouts = db.execute(
         "SELECT start_date, end_date FROM blackout WHERE item_id = ?",
         (item_id,),
     ).fetchall()
     return [
-        Interval(_to_date(r["start_date"]), _to_date(r["end_date"]))
+        Interval(to_date(r["start_date"]), to_date(r["end_date"]))
         for r in list(rows) + list(blackouts)
     ]
 
@@ -157,40 +223,6 @@ def current_status(item_id: int, today):
     if row:
         return {"state": "out", "until": str(row["end_date"])[:10]}
     return {"state": "available", "until": None}
-
-
-# ---- item update -----------------------------------------------------------
-
-def update_item(item_id, name, description, rate_amount, rate_unit,
-                deposit_amount, photo_path):
-    """Update an item. Slug is intentionally left unchanged (it's in the public
-    URL). photo_path is written as given — the route decides keep/replace/clear."""
-    db = get_db()
-    db.execute(
-        """UPDATE item SET name = ?, description = ?, rate_amount = ?,
-                           rate_unit = ?, deposit_amount = ?, photo_path = ?
-           WHERE id = ?""",
-        (name, description, rate_amount, rate_unit, deposit_amount, photo_path, item_id),
-    )
-    db.commit()
-
-
-# ---- confirm-time re-check -------------------------------------------------
-
-def confirmed_intervals_excluding(item_id, booking_id):
-    """Blocking intervals (confirmed bookings + blackouts) for an item, ignoring
-    one booking — used to re-check a booking before confirming it."""
-    db = get_db()
-    rows = db.execute(
-        """SELECT start_date, end_date FROM booking
-           WHERE item_id = ? AND status = 'confirmed' AND id != ?""",
-        (item_id, booking_id),
-    ).fetchall()
-    blackouts = db.execute(
-        "SELECT start_date, end_date FROM blackout WHERE item_id = ?", (item_id,)
-    ).fetchall()
-    return [Interval(_to_date(r["start_date"]), _to_date(r["end_date"]))
-            for r in list(rows) + list(blackouts)]
 
 
 # ---- blackouts -------------------------------------------------------------

@@ -9,7 +9,7 @@ from app.db import init_db
 
 
 @pytest.fixture
-def app():
+def app(tmp_path):
     fd, path = tempfile.mkstemp(suffix=".sqlite3")
 
     class TestConfig(Config):
@@ -18,6 +18,10 @@ def app():
         SECRET_KEY = "test"
         WTF_CSRF_ENABLED = False
         ADMIN_USERNAME = "admin"
+        # Per-test upload dir. Config derives UPLOAD_DIR from the *base*
+        # DATABASE at import time, so without this override every test shares
+        # one directory and they leak files into each other.
+        UPLOAD_DIR = str(tmp_path / "uploads")
 
     app = create_app(TestConfig)
     with app.app_context():

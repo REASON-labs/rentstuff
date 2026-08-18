@@ -1,18 +1,14 @@
-import re
-from datetime import date, datetime
+from datetime import date
 
 from flask import (Blueprint, abort, current_app, flash, redirect,
                    render_template, request, send_from_directory, url_for)
 
 from .. import mail, models
-from ..availability import find_conflicts, quote_amount
+from ..availability import find_conflicts, quote_amount, to_date
+from ..db import get_db
 from ..models import DEFAULT_AGREEMENT
 
 bp = Blueprint("public", __name__)
-
-
-def _parse_date(value):
-    return datetime.strptime(value, "%Y-%m-%d").date()
 
 
 @bp.route("/")
@@ -40,8 +36,8 @@ def item_detail(slug):
         if not request.form.get("agree"):
             errors.append("Please accept the rental terms to continue.")
         try:
-            start = _parse_date(request.form["start_date"])
-            end = _parse_date(request.form["end_date"])
+            start = to_date(request.form["start_date"])
+            end = to_date(request.form["end_date"])
             if end <= start:
                 errors.append("Return date must be after the pickup date.")
         except (KeyError, ValueError):
@@ -77,3 +73,23 @@ def item_detail(slug):
 def media(filename):
     """Serve an uploaded item photo from the upload directory."""
     return send_from_directory(current_app.config["UPLOAD_DIR"], filename)
+
+
+@bp.route("/healthz")
+def healthz():
+    """Liveness probe for Docker and the reverse proxy.
+
+    Deliberately touches the database: a process that's up but can't reach its
+    SQLite file (volume didn't remount, permissions changed) is the failure
+    worth catching, and a bare 200 wouldn't catch it.
+    """
+    try:
+        # Deliberately queries a real table. "SELECT 1" is answered without
+        # touching the file at all, and sqlite3.connect() *creates* a missing
+        # database — so the naive probe reports healthy against a vanished
+        # volume or a corrupt file, which is precisely what it's here to catch.
+        get_db().execute("SELECT 1 FROM item LIMIT 1").fetchone()
+    except Exception:
+        current_app.logger.exception("healthz: database probe failed")
+        return {"status": "error"}, 503
+    return {"status": "ok"}, 200

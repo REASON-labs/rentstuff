@@ -18,6 +18,15 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn ghost">{{ 'hide' if i['is_active'] else 'show' }}</button>
             </form>
+            {# Deletable only while it has no rental history; otherwise hide it. #}
+            {% if not booking_counts.get(i['id']) %}
+              <form class="inline-form" method="post"
+                    action="{{ url_for('admin.item_delete', item_id=i['id']) }}"
+                    onsubmit="return confirm('Delete {{ i['name']|e }}? This cannot be undone.')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn ghost danger">delete</button>
+              </form>
+            {% endif %}
           </td>
         </tr>
       {% endfor %}

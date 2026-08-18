@@ -18,7 +18,9 @@ Python environment (best for trying it out or developing) or Docker Compose
 
 ## Requirements
 
-- **Local:** Python 3.11 or newer.
+- **Local:** Python **3.12 or newer**. Not 3.11 — the code uses PEP 701
+  f-strings, so 3.11 fails at import with a `SyntaxError`. The Dockerfile
+  and CI both pin 3.12.
 - **Docker:** Docker with the Compose plugin (`docker compose`). No Python needed.
 
 ---
@@ -49,6 +51,17 @@ flask --app wsgi seed
 # 7. run it
 flask --app wsgi run --debug       # http://127.0.0.1:5000
 ```
+
+### Maintenance commands
+
+```bash
+flask --app wsgi prune-uploads --dry-run   # list photo files no item points at
+flask --app wsgi prune-uploads             # ...and delete them
+```
+
+Replacing or deleting an item's photo cleans up after itself, so this is only
+needed to sweep orphans left by older versions. Files written in the last 15
+minutes are skipped, since an upload may belong to a request still in flight.
 
 The public catalog is at `/`; the admin is at `/admin`.
 

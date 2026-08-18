@@ -95,3 +95,31 @@ docker compose up -d --build
 
 The database and uploaded photos are on the volume and are left untouched by a
 rollback, so no data is lost.
+
+## Health checks
+
+`GET /healthz` returns `{"status":"ok"}` (200) when the app can query its
+database, and `{"status":"error"}` (503) when it can't. It deliberately reads a
+real table: `SELECT 1` never touches the file, and `sqlite3.connect()` *creates*
+a missing database, so a naive probe would report healthy against a volume that
+failed to mount.
+
+The Dockerfile already wires this into a `HEALTHCHECK`, so `docker compose ps`
+shows health status directly. Behind Traefik, point the service's health check
+at the same path:
+
+```yaml
+labels:
+  - "traefik.http.services.rentstuff.loadbalancer.healthcheck.path=/healthz"
+  - "traefik.http.services.rentstuff.loadbalancer.healthcheck.interval=30s"
+```
+
+## Housekeeping
+
+Photo files are cleaned up automatically when an item's photo is replaced or the
+item is deleted. To sweep orphans left by versions before that existed:
+
+```bash
+docker compose exec rentstuff flask --app wsgi prune-uploads --dry-run
+docker compose exec rentstuff flask --app wsgi prune-uploads
+```

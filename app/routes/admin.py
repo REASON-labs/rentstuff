@@ -1,18 +1,22 @@
+import math
 import re
-from datetime import date, datetime
+from datetime import date
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 
 from .. import mail, models
 from ..auth import login_required
-from ..availability import find_conflicts, quote_amount, outstanding_by_renter
+from ..availability import (find_conflicts, outstanding_by_renter,
+                            quote_amount, to_date)
 from ..models import DEFAULT_AGREEMENT
-from ..photos import DEFAULT_IMAGES, save_upload
+from ..photos import DEFAULT_IMAGES, discard_upload, save_upload
 
 bp = Blueprint("admin", __name__)
 
 BOOL_SETTINGS = ("notify_on_request", "notify_on_confirm", "notify_on_paid")
+BOOKING_STATUSES = ("requested", "confirmed", "returned", "cancelled")
+RATE_UNITS = ("day", "week", "flat")
 
 
 def _slugify(name):
@@ -28,10 +32,55 @@ def _unique_slug(base):
     return slug
 
 
-def _d(value):
-    if isinstance(value, date):
-        return value
-    return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
+def _money(field, default=0.0):
+    """Parse a currency form field. Blank means the default; a stray '$' or
+    thousands comma is tolerated. Returns None for anything that isn't a
+    non-negative number, so callers can flash a message instead of 500-ing."""
+    raw = (request.form.get(field) or "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw.replace(",", "").lstrip("$").strip())
+    except ValueError:
+        return None
+    # float() happily parses 'nan' and 'inf'. NaN fails no comparison, so a
+    # bare `value < 0` lets it through, and it then hits a REAL NOT NULL column
+    # as SQL NULL -> IntegrityError -> the exact 500 this function exists to
+    # stop. inf is worse: it stores fine and poisons every quote and rollup it
+    # touches, permanently. Require a finite number.
+    if not math.isfinite(value) or value < 0:
+        return None
+    return round(value, 2)
+
+
+def _item_form_values():
+    """Pull and validate the item fields shared by create and edit.
+    Returns (values, errors); values is only safe to use when errors is empty."""
+    errors = []
+
+    name = request.form.get("name", "").strip()
+    if not name:
+        errors.append("Name is required.")
+
+    rate = _money("rate_amount")
+    if rate is None:
+        errors.append("Rate must be a number, and can't be negative.")
+
+    deposit = _money("deposit_amount")
+    if deposit is None:
+        errors.append("Deposit must be a number, and can't be negative.")
+
+    unit = request.form.get("rate_unit", "day")
+    if unit not in RATE_UNITS:
+        errors.append("Rate unit must be day, week or flat.")
+
+    return {
+        "name": name,
+        "description": request.form.get("description", "").strip(),
+        "rate_amount": rate,
+        "rate_unit": unit,
+        "deposit_amount": deposit,
+    }, errors
 
 
 def _resolve_photo(existing):
@@ -78,26 +127,25 @@ def dashboard():
 @bp.route("/items")
 @login_required
 def items():
-    return render_template("admin/items.html", items=models.list_items())
+    return render_template("admin/items.html",
+                           items=models.list_items(),
+                           booking_counts=models.booking_counts_by_item())
 
 
 @bp.route("/items/new", methods=("GET", "POST"))
 @login_required
 def item_new():
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        if not name:
-            flash("Name is required.")
+        values, errors = _item_form_values()
+        if errors:
+            for e in errors:
+                flash(e)
             return render_template("admin/item_form.html", form=request.form,
                                    defaults=DEFAULT_IMAGES, editing=False, item=None)
         models.create_item(
-            name=name,
-            slug=_unique_slug(_slugify(name)),
-            description=request.form.get("description", "").strip(),
-            rate_amount=float(request.form.get("rate_amount") or 0),
-            rate_unit=request.form.get("rate_unit", "day"),
-            deposit_amount=float(request.form.get("deposit_amount") or 0),
+            slug=_unique_slug(_slugify(values["name"])),
             photo_path=_resolve_photo(None),
+            **values,
         )
         flash("Item added.")
         return redirect(url_for("admin.items"))
@@ -112,20 +160,17 @@ def item_edit(item_id):
     if item is None:
         abort(404)
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        if not name:
-            flash("Name is required.")
+        values, errors = _item_form_values()   # slug intentionally left unchanged
+        if errors:
+            for e in errors:
+                flash(e)
             return render_template("admin/item_form.html", form=request.form,
                                    defaults=DEFAULT_IMAGES, editing=True, item=item)
-        models.update_item(
-            item_id,
-            name=name,   # slug intentionally left unchanged
-            description=request.form.get("description", "").strip(),
-            rate_amount=float(request.form.get("rate_amount") or 0),
-            rate_unit=request.form.get("rate_unit", "day"),
-            deposit_amount=float(request.form.get("deposit_amount") or 0),
-            photo_path=_resolve_photo(item["photo_path"]),
-        )
+        old_photo = item["photo_path"]
+        new_photo = _resolve_photo(old_photo)
+        models.update_item(item_id, photo_path=new_photo, **values)
+        if new_photo != old_photo:
+            discard_upload(old_photo)   # after the write: never orphan a live row
         flash("Item updated.")
         return redirect(url_for("admin.items"))
     return render_template("admin/item_form.html", form=dict(item), defaults=DEFAULT_IMAGES,
@@ -142,6 +187,27 @@ def item_toggle(item_id):
     return redirect(url_for("admin.items"))
 
 
+@bp.route("/items/<int:item_id>/delete", methods=("POST",))
+@login_required
+def item_delete(item_id):
+    """Delete an item outright — only allowed while it has no rental history.
+    Once bookings reference it, deleting would erase that history, so we steer
+    the admin to hiding it instead."""
+    item = models.get_item(item_id)
+    if item is None:
+        abort(404)
+    photo = item["photo_path"]
+    if not models.delete_item_if_unbooked(item_id):
+        # The guard lives in the SQL; the count here is only for the message.
+        n = models.count_bookings_for_item(item_id)
+        flash(f"Can't delete “{item['name']}” — it has {n} booking"
+              f"{'s' if n != 1 else ''} on record. Hide it instead.")
+        return redirect(url_for("admin.items"))
+    discard_upload(photo)
+    flash(f"Deleted “{item['name']}”.")
+    return redirect(url_for("admin.items"))
+
+
 # ---- blackouts -------------------------------------------------------------
 
 @bp.route("/items/<int:item_id>/blackouts", methods=("GET", "POST"))
@@ -152,7 +218,7 @@ def item_blackouts(item_id):
         abort(404)
     if request.method == "POST":
         try:
-            start, end = _d(request.form["start_date"]), _d(request.form["end_date"])
+            start, end = to_date(request.form["start_date"]), to_date(request.form["end_date"])
             if end <= start:
                 flash("End date must be after the start date.")
             else:
@@ -200,8 +266,8 @@ def booking_new():
         if not renter_name:
             errors.append("Renter name is required.")
         try:
-            start = _d(request.form["start_date"])
-            end = _d(request.form["end_date"])
+            start = to_date(request.form["start_date"])
+            end = to_date(request.form["end_date"])
             if end <= start:
                 errors.append("Return date must be after the pickup date.")
         except (KeyError, ValueError):
@@ -220,8 +286,12 @@ def booking_new():
             return render_template("admin/booking_form.html", items=items_list,
                                    form=request.form)
 
-        override = request.form.get("quoted_amount", "").strip()
-        quote = (float(override) if override
+        override = _money("quoted_amount", default=None)
+        if override is None and request.form.get("quoted_amount", "").strip():
+            flash("Quoted amount must be a number, and can't be negative.")
+            return render_template("admin/booking_form.html", items=items_list,
+                                   form=request.form)
+        quote = (override if override is not None
                  else quote_amount(item["rate_amount"], item["rate_unit"], start, end))
         models.create_booking(
             item_id=item["id"], renter_name=renter_name,
@@ -240,14 +310,15 @@ def booking_new():
 @login_required
 def booking_status(booking_id):
     new_status = request.form.get("status", "")
-    if new_status not in ("requested", "confirmed", "returned", "cancelled"):
+    if new_status not in BOOKING_STATUSES:
         abort(400)
     b = models.get_booking(booking_id)
     if b is None:
         abort(404)
     if new_status == "confirmed":
-        blocking = models.confirmed_intervals_excluding(b["item_id"], booking_id)
-        if find_conflicts(_d(b["start_date"]), _d(b["end_date"]), blocking):
+        blocking = models.blocking_intervals_for_item(b["item_id"],
+                                                      exclude_booking_id=booking_id)
+        if find_conflicts(to_date(b["start_date"]), to_date(b["end_date"]), blocking):
             flash("Can't confirm — those dates clash with another confirmed "
                   "booking or a blackout.")
             return redirect(url_for("admin.bookings"))
@@ -264,7 +335,10 @@ def booking_paid(booking_id):
     b = models.get_booking(booking_id)
     if b is None:
         abort(404)
-    amount = float(request.form.get("paid_amount") or b["quoted_amount"])
+    amount = _money("paid_amount", default=b["quoted_amount"])
+    if amount is None:
+        flash("Paid amount must be a number, and can't be negative.")
+        return redirect(url_for("admin.bookings"))
     method = request.form.get("payment_method", "cash")
     reference = request.form.get("payment_ref") or None
     models.mark_booking_paid(booking_id, amount, method, reference)

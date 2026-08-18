@@ -1,5 +1,6 @@
 import os
 
+import click
 from flask import Flask
 from flask_wtf import CSRFProtect
 from werkzeug.security import generate_password_hash
@@ -44,5 +45,16 @@ def create_app(config_object=Config):
         from .seed import run
         run()
         print("Seeded sample data.")
+
+    @app.cli.command("prune-uploads")
+    @click.option("--dry-run", is_flag=True, help="List orphans without deleting.")
+    def prune_uploads_command(dry_run):
+        """Delete uploaded photos no item points at any more."""
+        from .photos import prune_uploads
+        orphans = prune_uploads(dry_run=dry_run)
+        for name in orphans:
+            print(f"  {name}")
+        print(f"{'Would remove' if dry_run else 'Removed'} "
+              f"{len(orphans)} orphaned upload(s).")
 
     return app

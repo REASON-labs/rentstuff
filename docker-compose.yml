@@ -9,6 +9,11 @@ services:
       - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - RENTSTUFF_DB=/data/rentstuff.sqlite3
+      # Mail is optional — unset means send_email no-ops cleanly.
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY:-}
+      - MAILGUN_DOMAIN=${MAILGUN_DOMAIN:-}
+      - MAIL_FROM=${MAIL_FROM:-}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
     volumes:
       - rentstuff-data:/data
     restart: unless-stopped

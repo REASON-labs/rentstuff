@@ -17,8 +17,10 @@ Flask-WTF, and gunicorn.
 
 ## Quickstart
 
+Requires **Python 3.12+** (3.11 fails at import — PEP 701 f-strings).
+
 ```bash
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python3.12 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 
 cp .env.example .env          # set SECRET_KEY; ADMIN_PASSWORD defaults to 'changeme'
@@ -28,6 +30,8 @@ flask --app wsgi run --debug  # http://127.0.0.1:5000
 ```
 
 Admin lives at `/admin` (log in with `ADMIN_USERNAME` / `ADMIN_PASSWORD`).
+`GET /healthz` is an unauthenticated probe that returns `{"status":"ok"}`
+when the app can read its database, and 503 when it can't.
 
 ## Run tests
 

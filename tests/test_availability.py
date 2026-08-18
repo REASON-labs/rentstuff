@@ -76,3 +76,26 @@ def test_outstanding_skips_paid_and_cancelled():
         {"renter_name": "Ada", "quoted_amount": 25, "is_paid": False, "status": "confirmed"},
     ]
     assert outstanding_by_renter(bookings) == {"Sam": 100.0, "Ada": 25.0}
+
+
+# ---- to_date ---------------------------------------------------------------
+
+def test_to_date_accepts_every_shape_the_app_sees():
+    from datetime import date, datetime
+
+    from app.availability import to_date
+
+    assert to_date("2026-09-01") == date(2026, 9, 1)
+    assert to_date("2026-09-01 00:00:00") == date(2026, 9, 1)   # sqlite string
+    assert to_date(date(2026, 9, 1)) == date(2026, 9, 1)
+    assert to_date(datetime(2026, 9, 1, 13, 30)) == date(2026, 9, 1)
+
+
+def test_to_date_rejects_junk():
+    import pytest
+
+    from app.availability import to_date
+
+    for bad in ("", "not-a-date", "2026-13-45"):
+        with pytest.raises(ValueError):
+            to_date(bad)
