@@ -22,3 +22,22 @@ class Config:
     UPLOAD_DIR = os.environ.get("RENTSTUFF_UPLOADS") or os.path.join(
         os.path.dirname(DATABASE), "uploads")
     MAX_CONTENT_LENGTH = 8 * 1024 * 1024  # 8 MB upload cap
+
+    # --- session cookie hardening ------------------------------------------
+    # SameSite=Lax blocks the cross-site form POSTs that CSRF depends on; the
+    # Flask-WTF token is the belt to its braces. Secure is opt-in because the
+    # cookie would otherwise never be set over plain HTTP in local dev.
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = os.environ.get("SECURE_COOKIES", "") == "1"
+
+    # --- anti-abuse ---------------------------------------------------------
+    # How many reverse proxies sit in front of the app. Get this right: too low
+    # and every visitor appears to share the proxy's address, so one spammer
+    # rate-limits the whole site; too high and a client can forge
+    # X-Forwarded-For and skip the limiter. 0 = exposed directly.
+    TRUSTED_PROXIES = int(os.environ.get("TRUSTED_PROXIES", "0"))
+    # Turn away renter email addresses on known throwaway-mail domains.
+    BLOCK_DISPOSABLE_EMAIL = os.environ.get("BLOCK_DISPOSABLE_EMAIL", "") == "1"
+    # Refuse to decode images above this pixel count (decompression-bomb guard).
+    MAX_IMAGE_PIXELS = int(os.environ.get("MAX_IMAGE_PIXELS", str(50_000_000)))

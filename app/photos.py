@@ -42,8 +42,20 @@ def save_upload(file_storage):
     os.makedirs(upload_dir, exist_ok=True)
     name = uuid.uuid4().hex + ".webp"
     dest = os.path.join(upload_dir, name)
+    # Re-encoding through Pillow already means the stored file is a real image
+    # whatever the uploader called it — but the decode itself is the exposure.
+    # Image.open only reads the header; convert() below is what allocates the
+    # full bitmap, and thumbnail() caps the output, not the input. A 100KB PNG
+    # can declare 60000x60000 and expand to tens of gigabytes before either
+    # line runs, so the dimensions have to be checked while it's still lazy.
+    max_pixels = current_app.config.get("MAX_IMAGE_PIXELS", 50_000_000)
     try:
         img = Image.open(file_storage.stream)
+        width, height = img.size
+        if width * height > max_pixels:
+            current_app.logger.warning(
+                "rejected an upload declaring %dx%d pixels", width, height)
+            return None
         img = img.convert("RGB")
         img.thumbnail((1400, 1400))          # cap dimensions, keep aspect
         img.save(dest, "WEBP", quality=82, method=6)

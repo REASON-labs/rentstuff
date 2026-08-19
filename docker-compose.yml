@@ -14,6 +14,16 @@ services:
       - MAILGUN_DOMAIN=${MAILGUN_DOMAIN:-}
       - MAIL_FROM=${MAIL_FROM:-}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      # Anti-abuse. These must be passed through explicitly — a variable set in
+      # .env but missing here silently never reaches the container, which is
+      # exactly how the mail settings above went unnoticed once before.
+      # TRUSTED_PROXIES especially: at 0 behind a proxy, every visitor shares
+      # one address and the first spammer rate-limits the whole site.
+      - TRUSTED_PROXIES=${TRUSTED_PROXIES:-1}
+      - SECURE_COOKIES=${SECURE_COOKIES:-1}
+      - BLOCK_DISPOSABLE_EMAIL=${BLOCK_DISPOSABLE_EMAIL:-}
+      - MAIL_PER_ADDRESS_PER_DAY=${MAIL_PER_ADDRESS_PER_DAY:-12}
+      - MAX_IMAGE_PIXELS=${MAX_IMAGE_PIXELS:-50000000}
     volumes:
       - rentstuff-data:/data
     restart: unless-stopped

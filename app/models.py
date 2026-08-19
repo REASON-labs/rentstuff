@@ -146,6 +146,22 @@ def blocking_intervals_for_item(item_id: int,
     ]
 
 
+def open_bookings_for_item(item_id: int):
+    """Bookings still live enough to count as a duplicate if repeated.
+
+    'requested' and 'confirmed' only: a cancelled request should never stop the
+    same person asking again, and a returned one is history. Kept here rather
+    than in the route so the status list lives next to BLOCKING_STATUSES, which
+    it deliberately differs from — 'requested' doesn't block a date, but it does
+    make a second identical request a duplicate.
+    """
+    return get_db().execute(
+        "SELECT renter_contact, renter_email, start_date, end_date "
+        "FROM booking WHERE item_id = ? AND status IN ('requested', 'confirmed')",
+        (item_id,),
+    ).fetchall()
+
+
 # ---- bookings ------------------------------------------------------------
 
 def create_booking(item_id, renter_name, renter_contact, start_date, end_date,

@@ -13,6 +13,10 @@ Env:
 
 Whether each event actually sends is gated by Settings toggles
 (notify_on_request / notify_on_confirm / notify_on_paid), default on.
+
+Security (hardening spec, Category 4): every recipient address is validated and
+budget-checked inside send_email, so no notification path can be turned into a
+relay for mailing strangers. See the docstring there.
 """
 import base64
 import os
@@ -21,13 +25,44 @@ import urllib.request
 
 from flask import current_app
 
-from . import models
+from . import hardening, limits, models
+from .limits import audit
 
 
 def send_email(to, subject, text):
-    """Send one email. Returns True on success, False if unsent. Never raises."""
+    """Send one email. Returns True on success, False if unsent. Never raises.
+
+    The two guards below live *here* rather than at the form, deliberately. The
+    reserve form is not the only thing that can create a booking — the admin
+    add-booking screen does too, and a future importer or API might. Putting the
+    check at the single point where mail actually leaves means no call site can
+    forget it.
+
+    The threat is specific: RentStuff is a machine that sends email to an
+    address a stranger typed into a public form. Left unguarded, anyone can put
+    a victim's address in and have our domain, our reputation and our Mailgun
+    account deliver to them — a reflection relay, and a quick route to a
+    blocklisted sending domain.
+    """
     if not to:
         return False
+
+    ok, reason, _ = hardening.check_email(to, required=True)
+    if not ok:
+        audit("mail_rejected", reason=reason)
+        current_app.logger.warning("refusing to send to a malformed address")
+        return False
+
+    if not limits.mail_budget.allow(to):
+        # Per-address daily cap. The form's rate limiter stops a flood of
+        # bookings; this stops a flood of *mail*, which isn't the same thing —
+        # an attacker spreading submissions across IPs to dodge the form limiter
+        # would otherwise still get us to mail their victim over and over.
+        audit("mail_budget_exceeded",
+              recipient_fp=hardening.contact_fingerprint(to)[:12])
+        current_app.logger.warning("daily mail budget exhausted for a recipient")
+        return False
+
     key = os.environ.get("MAILGUN_API_KEY")
     domain = os.environ.get("MAILGUN_DOMAIN")
     sender = os.environ.get("MAIL_FROM") or (f"RentStuff <postmaster@{domain}>" if domain else "")

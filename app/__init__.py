@@ -1,11 +1,12 @@
 import os
 
 import click
-from flask import Flask
+from flask import Flask, request
 from flask_wtf import CSRFProtect
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash
 
-from . import db
+from . import db, hardening
 from .config import Config
 from .photos import photo_src
 
@@ -25,8 +26,40 @@ def create_app(config_object=Config):
         plaintext = os.environ.get("ADMIN_PASSWORD", "changeme")
         app.config["ADMIN_PASSWORD_HASH"] = generate_password_hash(plaintext)
 
+    # Behind a proxy, remote_addr is the proxy's address unless we say so — and
+    # the rate limiter is only as good as the address it keys on.
+    proxies = app.config.get("TRUSTED_PROXIES", 0)
+    if proxies > 0:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=proxies, x_proto=proxies)
+
     csrf.init_app(app)
     db.init_app(app)
+
+    from .limits import form_stamp
+    app.jinja_env.globals["form_stamp"] = form_stamp
+    app.jinja_env.globals["honeypot_fields"] = hardening.HONEYPOT_FIELDS
+
+    @app.after_request
+    def security_headers(response):
+        """Cheap, universally-safe response headers.
+
+        No Content-Security-Policy yet: the dark-mode pre-paint script in
+        base.html has to be inline to avoid a flash of light theme, so a strict
+        policy needs a per-request nonce first.
+        """
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy",
+                                    "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Permissions-Policy",
+            "geolocation=(), camera=(), microphone=(), interest-cohort=()")
+        # Uploaded photos are attacker-influenced bytes served from our own
+        # origin. nosniff plus a hard sandbox means that even if a browser were
+        # talked into treating one as HTML, it couldn't execute in our origin.
+        if request.path.startswith("/media/"):
+            response.headers["Content-Security-Policy"] = "sandbox; default-src 'none'"
+        return response
 
     from . import auth
     from .routes import admin, public

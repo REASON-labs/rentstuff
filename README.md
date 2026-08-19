@@ -63,6 +63,72 @@ Dates are half-open `[start, end)` — the return day is when the item is free
 again, so back-to-back reservations that touch don't conflict. Only `confirmed`
 bookings (plus blackout windows) block new requests.
 
+## Anti-abuse
+
+The public reserve form is the one place strangers can write to the database —
+and, because RentStuff sends email, the one place they can make it send mail to
+an address they chose. On 2026-08-18 this form took 21 near-identical bookings
+in 20 seconds. It is now defended in layers; none is strong alone, but together
+they stop that pattern without putting a CAPTCHA in front of your friends.
+
+| Layer | What it does |
+|---|---|
+| CSRF token | Flask-WTF, on every form. |
+| Signed form stamp | Hidden, signed issue-time. Rejects submissions faster than 3s (scripted) or older than 6h (scraped and replayed). |
+| Honeypots | Two off-screen decoy fields. Anything that fills one is automated. |
+| Rate limits | Per IP: 3 requests / 2 min, 10 / hour, and 2 / hour on any one item. |
+| Field validation | At least one real way to reach you (email or phone); links rejected in names; control characters stripped; server-side past-date and max-length checks. |
+| Duplicate detection | A repeat request for the same item and dates is absorbed, not queued twice. |
+| **Recipient validation** | **Every outbound address is checked inside `send_email`, so no notification path can be turned into a relay for mailing strangers.** |
+| **Mail budget** | **A hard cap on how much mail any one address can cause us to send per day.** |
+| Login throttle | 5 failed passwords per IP per 15 minutes, then HTTP 429. |
+| Structured logs | One JSON line per outcome on stdout, same format as FreeStuff. |
+
+The two bold rows are RentStuff-specific — they are Category 4 of the family
+hardening spec, which FreeStuff (no mail layer) doesn't need. They live in
+`send_email` rather than at the form on purpose: the reserve form isn't the only
+thing that creates bookings, and a guard at the single point where mail actually
+leaves is one no future call site can forget.
+
+Deliberately **not** included: a CAPTCHA (an external script on every page plus
+a real accessibility cost, for a site a few dozen people use) and gibberish or
+entropy scoring on names — it flags real names like *Szczepanski* far more often
+than it catches a bot that can just as easily generate *Sarah Miller*.
+
+### Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `TRUSTED_PROXIES` | `0` | How many reverse proxies sit in front of the app. **Set this to `1` behind Traefik.** |
+| `SECURE_COOKIES` | off | Set to `1` when serving over HTTPS. |
+| `BLOCK_DISPOSABLE_EMAIL` | off | Set to `1` to turn away known throwaway-mail domains. |
+| `MAIL_PER_ADDRESS_PER_DAY` | `12` | Cap on notifications sent to any one address per day. |
+
+`TRUSTED_PROXIES` matters more than it looks: leave it at `0` behind Traefik and
+every visitor appears to the app as the proxy's own address, so the rate limiter
+treats the whole site as one client and the first spammer locks everyone out.
+Set it higher than the real number of proxies and a client can forge
+`X-Forwarded-For` to skip the limiter entirely.
+
+### Watching for trouble
+
+```bash
+docker compose logs rentstuff | grep booking_rejected | jq -r .reason | sort | uniq -c
+docker compose logs rentstuff | grep rate_limited    | jq -r .ip     | sort | uniq -c | sort -rn
+```
+
+No renter name, contact, email or note text is ever logged — addresses appear
+only as a truncated hash, enough to correlate a repeat offender without the log
+becoming a second copy of the booking table.
+
+### A note on scale
+
+The rate limiter and the mail budget hold their counters in process memory
+rather than Redis, which keeps the deploy at one container. The tradeoff: each
+gunicorn worker counts separately, so with 2 workers a client gets roughly twice
+the listed allowance. The thresholds are set with that in mind; if you raise
+`--workers`, lower them in `app/limits.py` to match.
+
 ## Design
 
 A warm, industrial catalog look — `app/static/css/rentstuff.css`. Each item

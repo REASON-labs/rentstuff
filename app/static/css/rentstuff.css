@@ -208,3 +208,30 @@ svg .acf { fill: var(--rust); }
 .row-actions { display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; }
 .row-actions a { font-family: var(--mono); font-size: .74rem; }
 .row-actions a:hover { color: var(--rust); }
+
+/* Honeypot decoys. Moved off-screen rather than display:none — a bot that
+   filters hidden inputs tends to check display/visibility and miss this.
+   Paired with aria-hidden + tabindex="-1" in the template, so no real visitor,
+   pointing or keyboard-driven, can ever reach one. */
+.hp-field {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Logout is a POST form now (a GET logout is drive-by triggerable), but it
+   should still look and sit exactly like the nav link it replaced. */
+.logout-form { display: inline; }
+.logout-form .linklike {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}

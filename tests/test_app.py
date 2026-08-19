@@ -12,12 +12,13 @@ def test_admin_requires_login(client):
     assert "/login" in resp.headers["Location"]
 
 
-def test_request_flow_creates_booking(app, client):
+def test_request_flow_creates_booking(app, client, stamp):
     from app import models
     with app.app_context():
         models.create_item("Test Truck", "test-truck", "", 10, "day", 0)
 
     resp = client.post("/item/test-truck", data={
+        "form_stamp": stamp(),
         "renter_name": "Sam",
         "renter_contact": "sam@example.com",
         "agree": "1",
@@ -160,23 +161,25 @@ def test_admin_add_booking(app, client):
 
 # ---------- blackouts + agreement ----------
 
-def test_blackout_blocks_request(app, client):
+def test_blackout_blocks_request(app, client, stamp):
     with app.app_context():
         from app import models
         iid = models.create_item("Drill", "drill", "", 5, "day", 0)
         models.create_blackout(iid, "2026-11-10", "2026-11-15", "maint")
     client.post("/item/drill", data={"renter_name": "Sam", "agree": "1",
+                "renter_email": "sam@example.com", "form_stamp": stamp(),
                 "start_date": "2026-11-12", "end_date": "2026-11-14"}, follow_redirects=True)
     with app.app_context():
         from app import models
         assert models.list_bookings() == []  # blocked
 
 
-def test_agreement_required(app, client):
+def test_agreement_required(app, client, stamp):
     with app.app_context():
         from app import models
         models.create_item("Canoe", "canoe", "", 5, "day", 0)
     client.post("/item/canoe", data={"renter_name": "Sam",  # no 'agree'
+                "renter_email": "sam@example.com", "form_stamp": stamp(),
                 "start_date": "2026-12-01", "end_date": "2026-12-03"}, follow_redirects=True)
     with app.app_context():
         from app import models
@@ -196,7 +199,7 @@ def test_settings_saved(app, client):
         assert models.get_setting("agreement_text") == "be nice"
 
 
-def test_request_sends_emails(app, client, monkeypatch):
+def test_request_sends_emails(app, client, monkeypatch, stamp):
     sent = []
     import app.mail as mailmod
     monkeypatch.setattr(mailmod, "send_email",
@@ -206,6 +209,7 @@ def test_request_sends_emails(app, client, monkeypatch):
         models.create_item("Speaker", "speaker", "", 5, "day", 0)
         models.set_setting("admin_email", "admin@x.com")
     client.post("/item/speaker", data={
+        "form_stamp": stamp(),
         "renter_name": "Sam", "renter_email": "sam@x.com", "agree": "1",
         "start_date": "2027-01-01", "end_date": "2027-01-03"}, follow_redirects=True)
     assert "admin@x.com" in sent and "sam@x.com" in sent
@@ -565,3 +569,400 @@ def test_healthz_fails_when_the_schema_is_missing(app):
     resp = create_app(Broken).test_client().get("/healthz")   # never init-db'd
     assert resp.status_code == 503
     assert resp.get_json()["status"] == "error"
+
+
+# =========================================================================== #
+# Hardening (spec categories 1-6), ported from FreeStuff plus Category 4
+# =========================================================================== #
+import json
+
+import pytest
+
+from app import hardening, limits
+
+
+def _item(app, name="Trailer", slug="trailer"):
+    with app.app_context():
+        from app import models
+        return models.create_item(name, slug, "", 10, "day", 0)
+
+
+def _bookings(app):
+    with app.app_context():
+        from app import models
+        return models.list_bookings()
+
+
+# ---------- Category 4: the email relay, RentStuff's own vector -------------
+
+@pytest.fixture
+def outbox(app, monkeypatch):
+    """Capture what actually reaches the mail transport.
+
+    Mail has to be *configured* for this to mean anything: with no MAILGUN_*
+    env, send_email returns False for every address, so asserting on the return
+    value alone would pass whether or not the recipient was ever validated.
+    That mistake is what this fixture exists to prevent — the assertions below
+    are about which addresses reached urlopen, not what send_email returned.
+    """
+    sent = []
+    monkeypatch.setenv("MAILGUN_API_KEY", "test-key")
+    monkeypatch.setenv("MAILGUN_DOMAIN", "test.example")
+
+    class _Resp:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    def fake_urlopen(req, timeout=None):
+        from urllib.parse import parse_qs
+        sent.append(parse_qs(req.data.decode())["to"][0])
+        return _Resp()
+
+    from app import mail
+    monkeypatch.setattr(mail.urllib.request, "urlopen", fake_urlopen)
+    return sent
+
+
+def test_send_email_refuses_a_malformed_recipient(app, outbox):
+    """The reserve form is a machine that mails an address a stranger typed.
+
+    Left open, anyone can put a victim's address in the form and have our
+    domain and our Mailgun account deliver to them.
+    """
+    with app.app_context():
+        from app import mail
+        assert mail.send_email("real@example.com", "s", "t") is True
+        for bad in ("not-an-address", "a@b.com\r\nBcc: victim@x.com",
+                    "a@b.com, victim@x.com", "<victim@x.com>", "a@@b.com"):
+            assert mail.send_email(bad, "s", "t") is False
+    # Only the one good address was ever handed to the transport.
+    assert outbox == ["real@example.com"]
+
+
+def test_mail_budget_caps_what_one_address_can_be_sent(app, outbox, monkeypatch):
+    """Stops a flood of *mail*, which isn't the same thing as a flood of bookings.
+
+    An attacker spreading submissions across IPs to dodge the form rate limiter
+    would otherwise still get us to mail their victim over and over.
+    """
+    monkeypatch.setattr(limits, "mail_budget",
+                        hardening.NotificationBudget(limit=3))
+    with app.app_context():
+        from app import mail
+        results = [mail.send_email("victim@example.com", "s", "t")
+                   for _ in range(6)]
+    assert results == [True, True, True, False, False, False]
+    assert len(outbox) == 3, "budget must stop sends before the transport"
+
+
+def test_mail_budget_does_not_penalise_other_recipients(app, outbox, monkeypatch):
+    monkeypatch.setattr(limits, "mail_budget",
+                        hardening.NotificationBudget(limit=2))
+    with app.app_context():
+        from app import mail
+        for _ in range(4):
+            mail.send_email("victim@example.com", "s", "t")
+        assert mail.send_email("admin@example.com", "s", "t") is True
+    assert outbox.count("victim@example.com") == 2
+    assert outbox.count("admin@example.com") == 1
+
+
+def test_booking_notifications_go_through_the_same_guards(app, reserve, outbox):
+    """The guards live in send_email, so no notification path can skip them."""
+    _item(app)
+    with app.app_context():
+        from app import models
+        models.set_setting("admin_email", "owner@example.com")
+    reserve("trailer", renter_email="renter@example.com",
+            start_date="2026-09-01", end_date="2026-09-03")
+    assert sorted(outbox) == ["owner@example.com", "renter@example.com"]
+
+
+def test_mail_budget_is_per_address(app):
+    budget = hardening.NotificationBudget(limit=2)
+    assert [budget.allow("a@x.com") for _ in range(3)] == [True, True, False]
+    assert budget.allow("b@x.com") is True          # unrelated address unaffected
+    assert budget.allow("A@X.com ") is False        # same address, different case
+
+
+def test_booking_with_a_bad_email_is_rejected_before_it_is_stored(app, reserve):
+    _item(app)
+    reserve("trailer", renter_email="victim@example.com\nbcc: evil@x.com",
+            start_date="2026-09-01", end_date="2026-09-03")
+    assert _bookings(app) == []
+
+
+def test_disposable_email_rejected_only_when_enabled(app, reserve):
+    _item(app)
+    reserve("trailer", renter_email="throwaway@mailinator.com",
+            start_date="2026-09-01", end_date="2026-09-03")
+    assert len(_bookings(app)) == 1                  # off by default
+    app.config["BLOCK_DISPOSABLE_EMAIL"] = True
+    _item(app, "Van", "van")
+    reserve("van", renter_email="throwaway@mailinator.com",
+            start_date="2026-09-01", end_date="2026-09-03")
+    assert len(_bookings(app)) == 1                  # still 1 — the van was refused
+
+
+# ---------- Category 1: origin & intent ------------------------------------
+
+def test_reserve_form_serves_a_stamp_and_honeypots(app, client):
+    _item(app)
+    page = client.get("/item/trailer").get_data(as_text=True)
+    assert 'name="form_stamp"' in page
+    for f in hardening.HONEYPOT_FIELDS:
+        assert f'name="{f}"' in page
+    assert 'tabindex="-1"' in page and 'aria-hidden="true"' in page
+
+
+def test_direct_post_without_a_stamp_is_rejected(app, client):
+    """The attack's actual shape: a POST that never loaded the page."""
+    _item(app)
+    client.post("/item/trailer", data={
+        "renter_name": "vhnnhidmrs", "renter_contact": "tyoyiosrzf",
+        "renter_email": "jewflgkv@immenseignite.info", "agree": "1",
+        "start_date": "2026-09-01", "end_date": "2026-09-03"},
+        follow_redirects=True)
+    assert _bookings(app) == []
+
+
+def test_instant_submission_is_rejected(app, reserve, stamp):
+    _item(app)
+    r = reserve("trailer", form_stamp=stamp(seconds_ago=0),
+                start_date="2026-09-01", end_date="2026-09-03")
+    assert _bookings(app) == []
+    # Vague on purpose — naming the control is free tuning feedback for a prober.
+    assert b"honeypot" not in r.data.lower() and b"too fast" not in r.data.lower()
+
+
+def test_stale_form_gets_a_helpful_message(app, reserve, stamp):
+    """Someone who left the tab open overnight is not an attacker."""
+    _item(app)
+    r = reserve("trailer", form_stamp=stamp(seconds_ago=60 * 60 * 24),
+                start_date="2026-09-01", end_date="2026-09-03")
+    assert b"went stale" in r.data
+
+
+def test_honeypot_blocks_a_bot_that_fills_everything(app, reserve):
+    _item(app)
+    reserve("trailer", website="http://spam.example",
+            start_date="2026-09-01", end_date="2026-09-03")
+    assert _bookings(app) == []
+
+
+# ---------- Category 2: rate limiting --------------------------------------
+
+def test_reserve_flood_is_rate_limited(app, reserve):
+    """Replays the August 18 attack: 21 requests, back to back."""
+    for i, slug in enumerate(("a", "b", "c")):
+        _item(app, f"Item {i}", slug)
+    for i in range(21):
+        reserve(("a", "b", "c")[i % 3], renter_email=f"bot{i}@example.com",
+                start_date="2026-09-01", end_date="2026-09-03")
+    assert len(_bookings(app)) == limits.RATE_LIMITS["reserve_burst"][0]
+
+
+def test_per_item_limit_stops_one_item_being_swamped(app, reserve):
+    _item(app)
+    for i in range(3):
+        reserve("trailer", renter_email=f"p{i}@example.com",
+                start_date=f"2026-09-0{i+1}", end_date=f"2026-09-0{i+2}")
+    assert len(_bookings(app)) == limits.RATE_LIMITS["reserve_item"][0]
+
+
+def test_rate_limit_is_logged_with_the_offending_ip(app, reserve, capsys):
+    _item(app)
+    for i in range(5):
+        reserve("trailer", renter_email=f"p{i}@example.com",
+                start_date=f"2026-09-0{i+1}", end_date=f"2026-09-0{i+2}")
+    events = [json.loads(l) for l in capsys.readouterr().out.splitlines()
+              if l.startswith("{")]
+    limited = [e for e in events if e["event"] == "rate_limited"]
+    assert limited and limited[0]["retry_after"] > 0
+    assert all(e["app"] == "rentstuff" for e in events)   # family log format
+
+
+def test_logs_never_contain_renter_details(app, reserve, capsys):
+    _item(app)
+    reserve("trailer", renter_name="Sam Secret", renter_email="sam@private.example",
+            renter_contact="555-867-5309", notes="my address is 12 Elm St",
+            start_date="2026-09-01", end_date="2026-09-03")
+    out = capsys.readouterr().out
+    for secret in ("Sam Secret", "sam@private.example", "867-5309", "12 Elm St"):
+        assert secret not in out, secret
+
+
+# ---------- Category 3: input validation -----------------------------------
+
+def test_gibberish_booking_from_the_attack_is_rejected(app, reserve):
+    """The literal payload from the August 18 flood."""
+    _item(app)
+    reserve("trailer", renter_name="vhnnhidmrs", renter_contact="tyoyiosrzf",
+            renter_email="", start_date="2026-09-01", end_date="2026-09-03")
+    assert _bookings(app) == []
+
+
+def test_a_booking_needs_at_least_one_way_to_reach_you(app, reserve):
+    """Email and phone are each optional, but not both — the form's own rule."""
+    _item(app)
+    reserve("trailer", renter_email="", renter_contact="",
+            start_date="2026-09-01", end_date="2026-09-03")
+    assert _bookings(app) == []
+
+
+def test_phone_only_booking_is_accepted(app, reserve):
+    """Email is optional here; a phone number alone must still work."""
+    _item(app)
+    reserve("trailer", renter_email="", renter_contact="(555) 123-4567",
+            start_date="2026-09-01", end_date="2026-09-03")
+    assert len(_bookings(app)) == 1
+
+
+def test_past_dates_are_rejected_server_side(app, reserve):
+    """min= on the input is a client-side hint; a direct POST ignores it.
+
+    A booking in the past is invisible to every availability check, so it can
+    never conflict and never expires out of the dashboard.
+    """
+    _item(app)
+    reserve("trailer", start_date="2020-01-01", end_date="2020-01-03")
+    assert _bookings(app) == []
+
+
+def test_absurdly_long_rental_is_rejected(app, reserve):
+    """One POST could otherwise take an item off the calendar for years."""
+    _item(app)
+    reserve("trailer", start_date="2026-09-01", end_date="2099-09-01")
+    assert _bookings(app) == []
+
+
+def test_duplicate_request_for_the_same_window_is_absorbed(app, reserve):
+    _item(app)
+    reserve("trailer", renter_email="sam@example.com",
+            start_date="2026-09-01", end_date="2026-09-03")
+    r = reserve("trailer", renter_email="SAM@example.com ",
+                start_date="2026-09-01", end_date="2026-09-03")
+    assert len(_bookings(app)) == 1
+    assert b"already requested" in r.data
+
+
+def test_different_dates_are_not_a_duplicate(app, reserve):
+    """Same person, different window, is a real second booking."""
+    _item(app)
+    reserve("trailer", renter_email="sam@example.com",
+            start_date="2026-09-01", end_date="2026-09-03")
+    reserve("trailer", renter_email="sam@example.com",
+            start_date="2026-10-01", end_date="2026-10-03")
+    assert len(_bookings(app)) == 2
+
+
+def test_a_normal_booking_still_sails_through(app, reserve):
+    """False-positive guard: none of the above may block a real renter."""
+    _item(app)
+    r = reserve("trailer",
+                renter_name="Ana O'Brien-Szczepanski",
+                renter_email="ana.obrien+rent@example.co.uk",
+                renter_contact="+1 (555) 123-4567",
+                notes="Thanks! Picking up after 5 — see http://example.com/map",
+                start_date="2026-09-01", end_date="2026-09-04")
+    assert r.status_code == 200
+    assert len(_bookings(app)) == 1
+
+
+# ---------- admin auth ------------------------------------------------------
+
+def test_login_next_cannot_redirect_off_site(app):
+    """`next` was previously used unfiltered — a ready-made phishing hop."""
+    from app.auth import safe_next
+    hostile = ("https://evil.example/x", "//evil.example/x",
+               "http://evil.example", "javascript:alert(1)", "")
+    with app.test_request_context():
+        for target in hostile:
+            assert safe_next(target) == "/admin/"
+        # ...and the legitimate case still works.
+        assert safe_next("/admin/items") == "/admin/items"
+
+
+def test_login_is_rate_limited(client):
+    limit = limits.RATE_LIMITS["login_failed"][0]
+    for _ in range(limit):
+        r = client.post("/login", data={"username": "admin", "password": "no"})
+        assert r.status_code == 200
+    r = client.post("/login", data={"username": "admin", "password": "no"})
+    assert r.status_code == 429
+    assert "Retry-After" in r.headers
+
+
+def test_successful_login_clears_the_failure_counter(client, app):
+    """A typo or two must not leave a real admin near the lockout threshold."""
+    import os
+    from werkzeug.security import generate_password_hash
+    app.config["ADMIN_PASSWORD_HASH"] = generate_password_hash("right-password")
+    for _ in range(3):
+        client.post("/login", data={"username": "admin", "password": "no"})
+    r = client.post("/login", data={"username": "admin", "password": "right-password"})
+    assert r.status_code == 302
+    for _ in range(4):   # would trip the limit if the counter had persisted
+        r = client.post("/login", data={"username": "admin", "password": "no"})
+    assert r.status_code == 200
+
+
+def test_logout_is_post_only(client):
+    """As a GET this was drive-by triggerable with <img src="/logout">."""
+    with client.session_transaction() as sess:
+        sess["is_admin"] = True
+    assert client.get("/logout").status_code == 405
+    assert client.post("/logout").status_code in (301, 302)
+    with client.session_transaction() as sess:
+        assert "is_admin" not in sess
+
+
+# ---------- headers ---------------------------------------------------------
+
+def test_security_headers_are_present(client):
+    r = client.get("/")
+    assert r.headers["X-Content-Type-Options"] == "nosniff"
+    assert r.headers["X-Frame-Options"] == "DENY"
+    assert r.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert "Permissions-Policy" in r.headers
+
+
+def test_uploaded_media_is_served_sandboxed(app, client):
+    import io
+    from PIL import Image
+    with client.session_transaction() as sess:
+        sess["is_admin"] = True
+    buf = io.BytesIO()
+    Image.new("RGB", (32, 32), "red").save(buf, "PNG")
+    buf.seek(0)
+    client.post("/admin/items/new", data={
+        "name": "Ladder", "rate_amount": "4", "rate_unit": "day",
+        "deposit_amount": "0", "photo": (buf, "l.png")},
+        content_type="multipart/form-data")
+    with app.app_context():
+        from app import models
+        path = models.get_item_by_slug("ladder")["photo_path"]
+    csp = client.get("/media/" + path.split("/", 1)[1]).headers.get(
+        "Content-Security-Policy", "")
+    assert "sandbox" in csp and "default-src 'none'" in csp
+
+
+def test_upload_rejects_a_decompression_bomb(app, client):
+    """Image.open is lazy; convert() is what allocates. Check before decoding."""
+    import io
+    from PIL import Image
+    app.config["MAX_IMAGE_PIXELS"] = 100
+    with client.session_transaction() as sess:
+        sess["is_admin"] = True
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 64), "red").save(buf, "PNG")   # 4096 px > 100
+    buf.seek(0)
+    client.post("/admin/items/new", data={
+        "name": "Huge", "rate_amount": "4", "rate_unit": "day",
+        "deposit_amount": "0", "photo": (buf, "big.png")},
+        content_type="multipart/form-data")
+    with app.app_context():
+        from app import models
+        item = models.get_item_by_slug("huge")
+    assert not item["photo_path"], "oversized image should not have been stored"

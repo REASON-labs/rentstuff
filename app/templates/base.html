@@ -18,7 +18,7 @@
       <nav class="meta-nav">
         <a href="{{ url_for('public.index') }}">gear</a>
         <a href="{{ url_for('admin.dashboard') }}">admin</a>
-        {% if session.get('is_admin') %}<a href="{{ url_for('auth.logout') }}">logout</a>{% endif %}
+        {% if session.get('is_admin') %}<form method="post" action="{{ url_for('auth.logout') }}" class="logout-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="linklike">logout</button></form>{% endif %}
         <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle light or dark theme"></button>
       </nav>
     </header>
