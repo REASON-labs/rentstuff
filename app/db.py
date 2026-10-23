@@ -33,11 +33,25 @@ _ADDED_COLUMNS = {
     ],
 }
 
+# Allowlists — only these table/column identifiers are ever permitted in
+# _ensure_columns.  Every caller (currently just _ADDED_COLUMNS above)
+# must use names from these sets.  This prevents SQL injection through
+# table or column name interpolation.
+_VALID_TABLES = frozenset({"booking"})
+_VALID_COLUMNS = frozenset({
+    "renter_email", "agreed_terms",
+    # Keep this set synced with any new column additions.
+})
+
 
 def _ensure_columns(db):
     for table, cols in _ADDED_COLUMNS.items():
+        if table not in _VALID_TABLES:
+            raise ValueError(f"unknown table in _ADDED_COLUMNS: {table!r}")
         have = {r["name"] for r in db.execute(f"PRAGMA table_info({table})")}
         for name, decl in cols:
+            if name not in _VALID_COLUMNS:
+                raise ValueError(f"unknown column in _ADDED_COLUMNS: {table}.{name!r}")
             if name not in have:
                 db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 

@@ -564,8 +564,9 @@ def test_healthz_fails_when_the_schema_is_missing(app):
     class Broken(Config):
         TESTING = True
         DATABASE = empty
-        SECRET_KEY = "test"
+        SECRET_KEY = "test-key-not-default"
         WTF_CSRF_ENABLED = False
+        ADMIN_PASSWORD_HASH = "scrypt:32768:8:1$za0WN8p6rPGk7LnM$0a6e818fdccb246d9d85cf4b66a7e6fc63de039d03b31d1afed00ce656bd3cd216105611c34c403d1d9775e3366eb7a2c0772fe4dd7e85665bab24f45612a211"
         UPLOAD_DIR = tempfile.mkdtemp()
 
     resp = create_app(Broken).test_client().get("/healthz")   # never init-db'd
