@@ -1,3 +1,4 @@
+import functools
 import math
 import re
 from datetime import date
@@ -5,12 +6,30 @@ from datetime import date
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 
-from .. import mail, models
+from .. import limits, mail, models
+from ..db import get_db as _get_db
 from ..auth import login_required
 from ..availability import (find_conflicts, outstanding_by_renter,
                             quote_amount, to_date)
+from ..availability import BOOKING_TRANSITIONS
 from ..models import DEFAULT_AGREEMENT
 from ..photos import DEFAULT_IMAGES, discard_upload, save_upload
+
+
+def admin_write_required(view):
+    """Rate-limit admin write actions alongside login_required."""
+    @functools.wraps(view)
+    def wrapped(**kwargs):
+        if request.method != "POST":
+            return view(**kwargs)
+        allowed, retry_after = limits.admin_rate_limited()
+        if not allowed:
+            flash(f"Too many actions in a short time. Try again in "
+                  f"{max(1, retry_after // 60)} minute(s).")
+            return redirect(url_for("admin.dashboard")), 429, {
+                "Retry-After": str(retry_after)}
+        return view(**kwargs)
+    return wrapped
 
 bp = Blueprint("admin", __name__)
 
@@ -101,7 +120,7 @@ def _resolve_photo(existing):
 @bp.route("/")
 @login_required
 def dashboard():
-    all_bookings = models.list_bookings()
+    all_bookings, _ = models.list_bookings()
     outstanding = outstanding_by_renter(all_bookings)
     today = str(date.today())
 
@@ -134,6 +153,7 @@ def items():
 
 @bp.route("/items/new", methods=("GET", "POST"))
 @login_required
+@admin_write_required
 def item_new():
     if request.method == "POST":
         values, errors = _item_form_values()
@@ -155,6 +175,7 @@ def item_new():
 
 @bp.route("/items/<int:item_id>/edit", methods=("GET", "POST"))
 @login_required
+@admin_write_required
 def item_edit(item_id):
     item = models.get_item(item_id)
     if item is None:
@@ -179,6 +200,7 @@ def item_edit(item_id):
 
 @bp.route("/items/<int:item_id>/toggle", methods=("POST",))
 @login_required
+@admin_write_required
 def item_toggle(item_id):
     item = models.get_item(item_id)
     if item is None:
@@ -189,6 +211,7 @@ def item_toggle(item_id):
 
 @bp.route("/items/<int:item_id>/delete", methods=("POST",))
 @login_required
+@admin_write_required
 def item_delete(item_id):
     """Delete an item outright — only allowed while it has no rental history.
     Once bookings reference it, deleting would erase that history, so we steer
@@ -212,6 +235,7 @@ def item_delete(item_id):
 
 @bp.route("/items/<int:item_id>/blackouts", methods=("GET", "POST"))
 @login_required
+@admin_write_required
 def item_blackouts(item_id):
     item = models.get_item(item_id)
     if item is None:
@@ -234,8 +258,22 @@ def item_blackouts(item_id):
 
 @bp.route("/blackouts/<int:blackout_id>/delete", methods=("POST",))
 @login_required
+@admin_write_required
 def blackout_delete(blackout_id):
     item_id = request.form.get("item_id")
+    if not item_id:
+        flash("Item ID is required.")
+        return redirect(url_for("admin.dashboard"))
+    # Verify the blackout belongs to the specified item before deleting.
+    row = _get_db().execute(
+        "SELECT item_id FROM blackout WHERE id = ?", (blackout_id,)
+    ).fetchone()
+    if row is None:
+        flash("Blackout not found.")
+        return redirect(url_for("admin.dashboard"))
+    if row["item_id"] != int(item_id):
+        flash("That blackout does not belong to the specified item.")
+        return redirect(url_for("admin.dashboard"))
     models.delete_blackout(blackout_id)
     flash("Blackout removed.")
     return redirect(url_for("admin.item_blackouts", item_id=item_id))
@@ -246,11 +284,23 @@ def blackout_delete(blackout_id):
 @bp.route("/bookings")
 @login_required
 def bookings():
-    return render_template("admin/bookings.html", bookings=models.list_bookings())
+    page = max(1, int(request.args.get("page", 1)))
+    per_page = 20
+    rows, total = models.list_bookings(status=request.args.get("status", "") or None,
+                                       page=page, per_page=per_page)
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    return render_template("admin/bookings.html",
+                           rows=rows,
+                           bookings=rows,
+                           current_status=request.args.get("status", "") or None,
+                           page=page,
+                           total_pages=total_pages,
+                           per_page=per_page)
 
 
 @bp.route("/bookings/new", methods=("GET", "POST"))
 @login_required
+@admin_write_required
 def booking_new():
     items_list = models.list_items()
     if request.method == "POST":
@@ -308,6 +358,7 @@ def booking_new():
 
 @bp.route("/bookings/<int:booking_id>/status", methods=("POST",))
 @login_required
+@admin_write_required
 def booking_status(booking_id):
     new_status = request.form.get("status", "")
     if new_status not in BOOKING_STATUSES:
@@ -322,7 +373,9 @@ def booking_status(booking_id):
             flash("Can't confirm — those dates clash with another confirmed "
                   "booking or a blackout.")
             return redirect(url_for("admin.bookings"))
-    models.set_booking_status(booking_id, new_status)
+    if not models.set_booking_status(booking_id, new_status):
+        flash(f"Can't change booking status to '{new_status}' from '{b['status']}'.")
+        return redirect(url_for("admin.bookings"))
     flash(f"Booking marked {new_status}.")
     if new_status == "confirmed":
         mail.notify_confirmed(booking_id)
@@ -331,6 +384,7 @@ def booking_status(booking_id):
 
 @bp.route("/bookings/<int:booking_id>/paid", methods=("POST",))
 @login_required
+@admin_write_required
 def booking_paid(booking_id):
     b = models.get_booking(booking_id)
     if b is None:
@@ -351,6 +405,7 @@ def booking_paid(booking_id):
 
 @bp.route("/settings", methods=("GET", "POST"))
 @login_required
+@admin_write_required
 def settings():
     if request.method == "POST":
         for k in BOOL_SETTINGS:

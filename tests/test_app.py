@@ -29,7 +29,7 @@ def test_request_flow_creates_booking(app, client, stamp):
 
     with app.app_context():
         from app import models
-        bookings = models.list_bookings()
+        bookings, _ = models.list_bookings()
         assert len(bookings) == 1
         assert bookings[0]["renter_name"] == "Sam"
         assert bookings[0]["quoted_amount"] == 30.0  # 3 nights * 10
@@ -155,7 +155,7 @@ def test_admin_add_booking(app, client):
         "start_date": "2026-10-01", "end_date": "2026-10-03"})
     with app.app_context():
         from app import models
-        bs = models.list_bookings()
+        bs, _ = models.list_bookings()
     assert any(b["renter_name"] == "Sam" and b["quoted_amount"] == 16.0 for b in bs)
 
 
@@ -171,7 +171,7 @@ def test_blackout_blocks_request(app, client, stamp):
                 "start_date": "2026-11-12", "end_date": "2026-11-14"}, follow_redirects=True)
     with app.app_context():
         from app import models
-        assert models.list_bookings() == []  # blocked
+        assert models.list_bookings()[0] == []  # blocked
 
 
 def test_agreement_required(app, client, stamp):
@@ -183,7 +183,7 @@ def test_agreement_required(app, client, stamp):
                 "start_date": "2026-12-01", "end_date": "2026-12-03"}, follow_redirects=True)
     with app.app_context():
         from app import models
-        assert models.list_bookings() == []
+        assert models.list_bookings()[0] == []
 
 
 # ---------- settings + email ----------
@@ -498,7 +498,7 @@ def test_outstanding_by_renter_accepts_sqlite_rows(app):
         from app import models
         item_id = models.create_item("Rollup Rig", "rollup-rig", "", 10, "day", 0)
         models.create_booking(item_id, "Sam", "", "2026-09-01", "2026-09-04", 30, 0)
-        assert outstanding_by_renter(models.list_bookings()) == {"Sam": 30.0}
+        assert outstanding_by_renter(models.list_bookings()[0]) == {"Sam": 30.0}
 
 
 import pytest
@@ -590,7 +590,7 @@ def _item(app, name="Trailer", slug="trailer"):
 def _bookings(app):
     with app.app_context():
         from app import models
-        return models.list_bookings()
+        return models.list_bookings()[0]
 
 
 # ---------- Category 4: the email relay, RentStuff's own vector -------------

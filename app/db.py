@@ -33,13 +33,34 @@ _ADDED_COLUMNS = {
     ],
 }
 
+# Allowlists: only these identifiers may appear in DDL statements.
+# This prevents SQL injection if _ADDED_COLUMNS is ever populated from untrusted input.
+_VALID_TABLES: frozenset[str] = frozenset({"item", "booking", "blackout", "setting"})
+_VALID_COLUMNS: frozenset[str] = frozenset(
+    {"id", "name", "slug", "description", "photo_path", "rate_amount", "rate_unit",
+     "deposit_amount", "is_active", "created_at", "item_id", "renter_name",
+     "renter_contact", "renter_email", "start_date", "end_date", "status",
+     "quoted_amount", "notes", "agreed_terms", "is_paid", "paid_amount",
+     "payment_method", "payment_ref", "paid_at", "reason", "key", "value"}
+)
+
+
+def _validate_identifier(name: str) -> str:
+    """Validate an SQL identifier against the allowlist. Returns *name* on success."""
+    if name not in _VALID_TABLES and name not in _VALID_COLUMNS:
+        raise ValueError(f"Disallowed SQL identifier: {name!r}")
+    return name
+
 
 def _ensure_columns(db):
     for table, cols in _ADDED_COLUMNS.items():
-        have = {r["name"] for r in db.execute(f"PRAGMA table_info({table})")}
+        _validate_identifier(table)
+        have = {r["name"] for r in db.execute(f"PRAGMA table_info({_validate_identifier(table)})")}
         for name, decl in cols:
+            _validate_identifier(name)
             if name not in have:
-                db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+                # decl is trusted — it comes from our own source code, not user input.
+                db.execute(f"ALTER TABLE {_validate_identifier(table)} ADD COLUMN {name} {decl}")
 
 
 def init_db():
