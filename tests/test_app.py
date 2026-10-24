@@ -171,7 +171,8 @@ def test_blackout_blocks_request(app, client, stamp):
                 "start_date": "2026-11-12", "end_date": "2026-11-14"}, follow_redirects=True)
     with app.app_context():
         from app import models
-        assert models.list_bookings()[0] == []  # blocked
+        bookings, _ = models.list_bookings()
+        assert bookings == []  # blocked
 
 
 def test_agreement_required(app, client, stamp):
@@ -498,7 +499,8 @@ def test_outstanding_by_renter_accepts_sqlite_rows(app):
         from app import models
         item_id = models.create_item("Rollup Rig", "rollup-rig", "", 10, "day", 0)
         models.create_booking(item_id, "Sam", "", "2026-09-01", "2026-09-04", 30, 0)
-        assert outstanding_by_renter(models.list_bookings()[0]) == {"Sam": 30.0}
+        rows, _ = models.list_bookings()
+        assert outstanding_by_renter(rows) == {"Sam": 30.0}
 
 
 import pytest
@@ -590,7 +592,8 @@ def _item(app, name="Trailer", slug="trailer"):
 def _bookings(app):
     with app.app_context():
         from app import models
-        return models.list_bookings()[0]
+        rows, _ = models.list_bookings()
+        return rows
 
 
 # ---------- Category 4: the email relay, RentStuff's own vector -------------
