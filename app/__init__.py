@@ -12,10 +12,45 @@ from .photos import photo_src
 
 csrf = CSRFProtect()
 
+# Default values that must never ship to production.
+_DEFAULT_SECRET_KEY = "dev-only-change-me"
+_DEFAULT_ADMIN_PASSWORD = "changeme"
+
+
+def _check_production_secrets(app):
+    """Exit immediately if SECRET_KEY or ADMIN_PASSWORD are still at their
+    development defaults.  This catches misconfigurations before the app
+    starts listening for traffic.
+    """
+    secret = app.config.get("SECRET_KEY", "")
+    if secret == _DEFAULT_SECRET_KEY or not secret:
+        raise RuntimeError(
+            "SECRET_KEY is not set or is still at its default value. "
+            "Set the SECRET_KEY environment variable to a long random string. "
+            "See INSTALL.md for instructions."
+        )
+
+    # ADMIN_PASSWORD_HASH is set from ADMIN_PASSWORD if neither is provided.
+    # If the hash still derives from the default password, that's also bad.
+    pw_hash = app.config.get("ADMIN_PASSWORD_HASH", "")
+    if not pw_hash:
+        # No pre-hashed password was set — check the plaintext password.
+        pw = os.environ.get("ADMIN_PASSWORD", "")
+        if pw == _DEFAULT_ADMIN_PASSWORD or not pw:
+            raise RuntimeError(
+                "ADMIN_PASSWORD_HASH is not set and ADMIN_PASSWORD is still "
+                "at its default value ('changeme').  Set ADMIN_PASSWORD_HASH "
+                "to a werkzeug-generated hash, or set ADMIN_PASSWORD to a "
+                "strong password.  See INSTALL.md for instructions."
+            )
+
 
 def create_app(config_object=Config):
     app = Flask(__name__)
     app.config.from_object(config_object)
+
+    # --- production hardening: refuse to run with defaults -------------------
+    _check_production_secrets(app)
 
     os.makedirs(os.path.dirname(app.config["DATABASE"]), exist_ok=True)
     os.makedirs(app.config["UPLOAD_DIR"], exist_ok=True)
