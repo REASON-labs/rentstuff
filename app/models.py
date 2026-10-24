@@ -2,7 +2,7 @@
 scheduling/billing math lives in availability.py."""
 from __future__ import annotations
 
-from .availability import BLOCKING_STATUSES, Interval, to_date
+from .availability import BLOCKING_STATUSES, BOOKING_TRANSITIONS, Interval, to_date
 from .db import get_db
 
 DEFAULT_AGREEMENT = (
@@ -180,22 +180,33 @@ def create_booking(item_id, renter_name, renter_contact, start_date, end_date,
     return cur.lastrowid
 
 
-def list_bookings(status=None):
+def list_bookings(status=None, page: int = 1, per_page: int = 20):
+    """List bookings with optional status filter and pagination.
+
+    Returns (rows, total_count) where total_count is the total number of
+    matching rows (without pagination) so the caller can compute page count.
+    """
     db = get_db()
     if status:
-        rows = db.execute(
-            """SELECT b.*, i.name AS item_name FROM booking b
-               JOIN item i ON i.id = b.item_id
-               WHERE b.status = ? ORDER BY b.start_date""",
-            (status,),
-        ).fetchall()
+        count_sql = """SELECT COUNT(*) AS n FROM booking b
+                       JOIN item i ON i.id = b.item_id
+                       WHERE b.status = ?"""
+        list_sql = """SELECT b.*, i.name AS item_name FROM booking b
+                      JOIN item i ON i.id = b.item_id
+                      WHERE b.status = ? ORDER BY b.start_date DESC
+                      LIMIT ? OFFSET ?"""
+        params: list = [status, per_page, (page - 1) * per_page]
     else:
-        rows = db.execute(
-            """SELECT b.*, i.name AS item_name FROM booking b
-               JOIN item i ON i.id = b.item_id
-               ORDER BY b.start_date DESC""",
-        ).fetchall()
-    return rows
+        count_sql = """SELECT COUNT(*) AS n FROM booking b
+                       JOIN item i ON i.id = b.item_id"""
+        list_sql = """SELECT b.*, i.name AS item_name FROM booking b
+                      JOIN item i ON i.id = b.item_id
+                      ORDER BY b.start_date DESC
+                      LIMIT ? OFFSET ?"""
+        params = [per_page, (page - 1) * per_page]
+    total = db.execute(count_sql, (status,) if status else ()).fetchone()["n"]
+    rows = db.execute(list_sql, params).fetchall()
+    return rows, total
 
 
 def get_booking(booking_id: int):
@@ -206,10 +217,25 @@ def get_booking(booking_id: int):
     ).fetchone()
 
 
-def set_booking_status(booking_id: int, status: str):
+def set_booking_status(booking_id: int, status: str) -> bool:
+    """Set a booking's status, enforcing the state machine.
+
+    Returns True if the transition was applied, False if it was rejected
+    because the current status cannot reach *status* (an invalid transition).
+    """
     db = get_db()
+    row = db.execute(
+        "SELECT status FROM booking WHERE id = ?", (booking_id,)
+    ).fetchone()
+    if row is None:
+        return False
+    current = row["status"]
+    allowed = BOOKING_TRANSITIONS.get(current, frozenset())
+    if status not in allowed:
+        return False
     db.execute("UPDATE booking SET status = ? WHERE id = ?", (status, booking_id))
     db.commit()
+    return True
 
 
 def mark_booking_paid(booking_id: int, paid_amount, method, reference=None):

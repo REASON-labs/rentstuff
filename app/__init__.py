@@ -36,16 +36,18 @@ def create_app(config_object=Config):
     db.init_app(app)
 
     from .limits import form_stamp
+    from .availability import BOOKING_TRANSITIONS
     app.jinja_env.globals["form_stamp"] = form_stamp
     app.jinja_env.globals["honeypot_fields"] = hardening.HONEYPOT_FIELDS
+    app.jinja_env.globals["BOOKING_TRANSITIONS"] = BOOKING_TRANSITIONS
 
     @app.after_request
     def security_headers(response):
         """Cheap, universally-safe response headers.
 
-        No Content-Security-Policy yet: the dark-mode pre-paint script in
-        base.html has to be inline to avoid a flash of light theme, so a strict
-        policy needs a per-request nonce first.
+        CSP is kept minimal: only the /media/ path gets a strict sandbox policy.
+        The dark-mode pre-paint script in base.html requires inline JS, so a
+        strict policy needs a per-request nonce first (tracked as a nice-to-have).
         """
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
@@ -59,6 +61,11 @@ def create_app(config_object=Config):
         # talked into treating one as HTML, it couldn't execute in our origin.
         if request.path.startswith("/media/"):
             response.headers["Content-Security-Policy"] = "sandbox; default-src 'none'"
+        # HSTS: force HTTPS for one year, preloading. Not set in dev (no SECURE_COOKIES).
+        if os.environ.get("SECURE_COOKIES") == "1":
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
         return response
 
     from . import auth

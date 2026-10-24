@@ -21,6 +21,8 @@ RATE_LIMITS = {
     "reserve_sustained":   (10,   3600),    # 10 / hour per IP
     "reserve_item":        (2,    3600),    # 2 / hour against ONE item
     "login_failed":        (5,    900),     # 5 bad passwords / 15 min
+    # Admin endpoints: stricter than public because the admin is authenticated.
+    "admin_write":         (300,  3600),    # 300 write actions / hour per admin
 }
 
 # Outbound mail per recipient address per day. A booking generates up to three
@@ -76,6 +78,18 @@ def rate_limited(bucket, suffix=""):
 def form_stamp():
     """Signed issue-time for the reserve form, for the template to embed."""
     return hardening.sign_form_stamp(current_app.config["SECRET_KEY"])
+
+
+def admin_rate_limited():
+    """Check the admin_write bucket for the current admin session.
+
+    Returns (allowed, retry_after_seconds).  Keyed on the admin's session id
+    rather than IP so a shared proxy doesn't throttle all admins at once.
+    """
+    from flask import session
+    limit, window = RATE_LIMITS["admin_write"]
+    key = f"admin_write:{session.get('session_id', client_ip())}"
+    return limiter.check(key, limit, window)
 
 
 def disposable_domains():

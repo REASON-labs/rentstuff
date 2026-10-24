@@ -16,6 +16,17 @@ from math import ceil
 # NOT here: pending requests are surfaced as soft warnings, not conflicts.
 BLOCKING_STATUSES = ("confirmed",)
 
+# Legal status transitions for bookings.  Each key maps to the set of statuses
+# it may transition *into*.  This is the single source of truth used by both
+# the model layer (to reject invalid transitions at the DB level) and the
+# admin route (to validate form input before calling set_booking_status).
+BOOKING_TRANSITIONS: dict[str, frozenset[str]] = {
+    "requested": frozenset({"confirmed", "cancelled"}),
+    "confirmed": frozenset({"returned", "cancelled"}),
+    "returned":  frozenset(),            # terminal
+    "cancelled": frozenset({"requested"}), # undo a mistaken cancel
+}
+
 
 def to_date(value) -> date:
     """Coerce a date, a datetime, or a 'YYYY-MM-DD...' string to a date.

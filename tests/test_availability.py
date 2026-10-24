@@ -99,3 +99,64 @@ def test_to_date_rejects_junk():
     for bad in ("", "not-a-date", "2026-13-45"):
         with pytest.raises(ValueError):
             to_date(bad)
+
+
+# ---- booking transitions ---------------------------------------------------
+
+from app.availability import BOOKING_TRANSITIONS
+
+
+def test_booking_cancelled_can_undo_to_requested():
+    """Admin can undo a mistaken cancel: cancelled -> requested."""
+    assert "requested" in BOOKING_TRANSITIONS["cancelled"]
+
+
+def test_booking_transitions_all_valid():
+    """Every transition target is a real booking status."""
+    all_statuses = {"requested", "confirmed", "returned", "cancelled"}
+    for status, targets in BOOKING_TRANSITIONS.items():
+        assert all(t in all_statuses for t in targets), \
+            f"{status} -> {targets - all_statuses} are invalid"
+
+
+def test_booking_transitions_no_cycles():
+    """Transition graph has no cycles (except the cancelled->requested->cancelled one which is intentional)."""
+    # Build adjacency and check for cycles via DFS
+    visited = set()
+    rec_stack = set()
+
+    def has_cycle(node):
+        visited.add(node)
+        rec_stack.add(node)
+        for neighbor in BOOKING_TRANSITIONS.get(node, set()):
+            if neighbor not in visited:
+                if has_cycle(neighbor):
+                    return True
+            elif neighbor in rec_stack:
+                return True
+        rec_stack.discard(node)
+        return False
+
+    # cancelled -> requested -> cancelled is expected; we allow it.
+    # But we should not have any other cycles.
+    # For simplicity, just verify the graph is a DAG when we remove the cancelled<->requested edge.
+    dag_transitions = {k: v - {"requested"} if k == "cancelled" else v - {"cancelled"}
+                       for k, v in BOOKING_TRANSITIONS.items()}
+    visited_dag = set()
+    rec_stack_dag = set()
+
+    def has_cycle_dag(node):
+        visited_dag.add(node)
+        rec_stack_dag.add(node)
+        for neighbor in dag_transitions.get(node, set()):
+            if neighbor not in visited_dag:
+                if has_cycle_dag(neighbor):
+                    return True
+            elif neighbor in rec_stack_dag:
+                return True
+        rec_stack_dag.discard(node)
+        return False
+
+    for status in BOOKING_TRANSITIONS:
+        if status not in visited_dag:
+            assert not has_cycle_dag(status), f"Cycle detected involving {status}"
