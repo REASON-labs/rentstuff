@@ -24,7 +24,7 @@ BOOKING_TRANSITIONS: dict[str, frozenset[str]] = {
     "requested": frozenset({"confirmed", "cancelled"}),
     "confirmed": frozenset({"returned", "cancelled"}),
     "returned":  frozenset(),            # terminal
-    "cancelled": frozenset(),           # terminal
+    "cancelled": frozenset({"requested"}), # undo a mistaken cancel
 }
 
 

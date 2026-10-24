@@ -33,6 +33,7 @@ _ADDED_COLUMNS = {
     ],
 }
 
+
 def _ensure_columns(db):
     for table, cols in _ADDED_COLUMNS.items():
         have = {r["name"] for r in db.execute(f"PRAGMA table_info({table})")}

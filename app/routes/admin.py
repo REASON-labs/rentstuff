@@ -295,7 +295,8 @@ def bookings():
                            current_status=request.args.get("status", "") or None,
                            page=page,
                            total_pages=total_pages,
-                           per_page=per_page)
+                           per_page=per_page,
+                           BOOKING_TRANSITIONS=BOOKING_TRANSITIONS)
 
 
 @bp.route("/bookings/new", methods=("GET", "POST"))

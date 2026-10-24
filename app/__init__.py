@@ -64,7 +64,7 @@ def create_app(config_object=Config):
         # HSTS: force HTTPS for one year, preloading. Not set in dev (no SECURE_COOKIES).
         if os.environ.get("SECURE_COOKIES") == "1":
             response.headers["Strict-Transport-Security"] = (
-                "max-age=31536000; includeSubDomains; preload"
+                "max-age=31536000; includeSubDomains"
             )
         return response
 

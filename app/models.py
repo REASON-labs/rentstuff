@@ -204,7 +204,7 @@ def list_bookings(status=None, page: int = 1, per_page: int = 20):
                       ORDER BY b.start_date DESC
                       LIMIT ? OFFSET ?"""
         params = [per_page, (page - 1) * per_page]
-    total = db.execute(count_sql, params[:1]).fetchone()["n"]
+    total = db.execute(count_sql, (status,) if status else ()).fetchone()["n"]
     rows = db.execute(list_sql, params).fetchall()
     return rows, total
 
