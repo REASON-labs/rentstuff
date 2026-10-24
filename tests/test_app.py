@@ -22,8 +22,8 @@ def test_request_flow_creates_booking(app, client, stamp):
         "renter_name": "Sam",
         "renter_contact": "sam@example.com",
         "agree": "1",
-        "start_date": "2026-09-01",
-        "end_date": "2026-09-04",
+        "start_date": "2098-09-01",
+        "end_date": "2098-09-04",
     }, follow_redirects=True)
     assert resp.status_code == 200
 
@@ -132,10 +132,10 @@ def test_confirm_rechecks_conflict(app, client):
         from app import models
         iid = models.create_item("Van", "van", "", 10, "day", 0)
         models.create_booking(item_id=iid, renter_name="A", renter_contact="",
-                              start_date="2026-09-01", end_date="2026-09-05",
+                              start_date="2098-09-01", end_date="2098-09-05",
                               quoted_amount=40, deposit_amount=0, status="confirmed")
         b = models.create_booking(item_id=iid, renter_name="B", renter_contact="",
-                                  start_date="2026-09-03", end_date="2026-09-07",
+                                  start_date="2098-09-03", end_date="2098-09-07",
                                   quoted_amount=40, deposit_amount=0, status="requested")
     client.post(f"/admin/bookings/{b}/status", data={"status": "confirmed"})
     with app.app_context():
@@ -152,7 +152,7 @@ def test_admin_add_booking(app, client):
         iid = models.create_item("Kayak", "kayak", "", 8, "day", 0)
     client.post("/admin/bookings/new", data={
         "item_id": str(iid), "renter_name": "Sam", "status": "confirmed",
-        "start_date": "2026-10-01", "end_date": "2026-10-03"})
+        "start_date": "2098-10-01", "end_date": "2098-10-03"})
     with app.app_context():
         from app import models
         bs, _ = models.list_bookings()
@@ -165,10 +165,10 @@ def test_blackout_blocks_request(app, client, stamp):
     with app.app_context():
         from app import models
         iid = models.create_item("Drill", "drill", "", 5, "day", 0)
-        models.create_blackout(iid, "2026-11-10", "2026-11-15", "maint")
+        models.create_blackout(iid, "2098-11-10", "2098-11-15", "maint")
     client.post("/item/drill", data={"renter_name": "Sam", "agree": "1",
                 "renter_email": "sam@example.com", "form_stamp": stamp(),
-                "start_date": "2026-11-12", "end_date": "2026-11-14"}, follow_redirects=True)
+                "start_date": "2098-11-12", "end_date": "2098-11-14"}, follow_redirects=True)
     with app.app_context():
         from app import models
         bookings, _ = models.list_bookings()
@@ -181,7 +181,7 @@ def test_agreement_required(app, client, stamp):
         models.create_item("Canoe", "canoe", "", 5, "day", 0)
     client.post("/item/canoe", data={"renter_name": "Sam",  # no 'agree'
                 "renter_email": "sam@example.com", "form_stamp": stamp(),
-                "start_date": "2026-12-01", "end_date": "2026-12-03"}, follow_redirects=True)
+                "start_date": "2098-12-01", "end_date": "2098-12-03"}, follow_redirects=True)
     with app.app_context():
         from app import models
         assert models.list_bookings()[0] == []
@@ -212,7 +212,7 @@ def test_request_sends_emails(app, client, monkeypatch, stamp):
     client.post("/item/speaker", data={
         "form_stamp": stamp(),
         "renter_name": "Sam", "renter_email": "sam@x.com", "agree": "1",
-        "start_date": "2027-01-01", "end_date": "2027-01-03"}, follow_redirects=True)
+        "start_date": "2099-01-01", "end_date": "2099-01-03"}, follow_redirects=True)
     assert "admin@x.com" in sent and "sam@x.com" in sent
 
 
@@ -284,7 +284,7 @@ def test_item_delete_when_unbooked(app, client):
     with app.app_context():
         from app import models
         item_id = models.create_item("Spare Ladder", "spare-ladder", "", 5, "day", 0)
-        models.create_blackout(item_id, "2026-09-01", "2026-09-03", "paint")
+        models.create_blackout(item_id, "2098-09-01", "2098-09-03", "paint")
 
     client.post(f"/admin/items/{item_id}/delete", follow_redirects=True)
 
@@ -299,7 +299,7 @@ def test_item_delete_blocked_by_booking(app, client):
     with app.app_context():
         from app import models
         item_id = models.create_item("Booked Trailer", "booked-trailer", "", 5, "day", 0)
-        models.create_booking(item_id, "Sam", "", "2026-09-01", "2026-09-04", 15, 0)
+        models.create_booking(item_id, "Sam", "", "2098-09-01", "2098-09-04", 15, 0)
 
     resp = client.post(f"/admin/items/{item_id}/delete", follow_redirects=True)
     assert b"Hide it instead" in resp.data
@@ -328,7 +328,7 @@ def test_delete_button_hidden_for_booked_items(app, client):
         from app import models
         free_id = models.create_item("Free Item", "free-item", "", 5, "day", 0)
         booked_id = models.create_item("Booked Item", "booked-item", "", 5, "day", 0)
-        models.create_booking(booked_id, "Sam", "", "2026-09-01", "2026-09-04", 15, 0)
+        models.create_booking(booked_id, "Sam", "", "2098-09-01", "2098-09-04", 15, 0)
 
     body = client.get("/admin/items").data.decode()
     assert f"/admin/items/{free_id}/delete" in body
@@ -484,8 +484,8 @@ def test_dashboard_renders_with_bookings(app, client):
     with app.app_context():
         from app import models
         item_id = models.create_item("Dash Rig", "dash-rig", "", 10, "day", 0)
-        models.create_booking(item_id, "Sam", "", "2026-09-01", "2026-09-04", 30, 0)
-        models.create_booking(item_id, "Ada", "", "2026-09-10", "2026-09-12", 20, 0)
+        models.create_booking(item_id, "Sam", "", "2098-09-01", "2098-09-04", 30, 0)
+        models.create_booking(item_id, "Ada", "", "2098-09-10", "2098-09-12", 20, 0)
 
     resp = client.get("/admin/")
     assert resp.status_code == 200
@@ -498,7 +498,7 @@ def test_outstanding_by_renter_accepts_sqlite_rows(app):
     with app.app_context():
         from app import models
         item_id = models.create_item("Rollup Rig", "rollup-rig", "", 10, "day", 0)
-        models.create_booking(item_id, "Sam", "", "2026-09-01", "2026-09-04", 30, 0)
+        models.create_booking(item_id, "Sam", "", "2098-09-01", "2098-09-04", 30, 0)
         rows, _ = models.list_bookings()
         assert outstanding_by_renter(rows) == {"Sam": 30.0}
 
@@ -528,7 +528,7 @@ def test_non_finite_paid_amount_is_rejected(app, client):
     with app.app_context():
         from app import models
         item_id = models.create_item("Paid Rig", "paid-rig", "", 10, "day", 0)
-        bid = models.create_booking(item_id, "Sam", "", "2026-09-01", "2026-09-04", 30, 0)
+        bid = models.create_booking(item_id, "Sam", "", "2098-09-01", "2098-09-04", 30, 0)
 
     resp = client.post(f"/admin/bookings/{bid}/paid", data={"paid_amount": "nan"},
                        follow_redirects=True)
@@ -545,7 +545,7 @@ def test_delete_guard_is_atomic_not_check_then_delete(app):
     with app.app_context():
         from app import models
         item_id = models.create_item("Racy", "racy", "", 5, "day", 0)
-        models.create_booking(item_id, "Sam", "", "2026-09-01", "2026-09-04", 15, 0)
+        models.create_booking(item_id, "Sam", "", "2098-09-01", "2098-09-04", 15, 0)
 
         assert models.delete_item_if_unbooked(item_id) is False
         assert models.get_item(item_id) is not None
@@ -678,7 +678,7 @@ def test_booking_notifications_go_through_the_same_guards(app, reserve, outbox):
         from app import models
         models.set_setting("admin_email", "owner@example.com")
     reserve("trailer", renter_email="renter@example.com",
-            start_date="2026-09-01", end_date="2026-09-03")
+            start_date="2098-09-01", end_date="2098-09-03")
     assert sorted(outbox) == ["owner@example.com", "renter@example.com"]
 
 
@@ -692,19 +692,19 @@ def test_mail_budget_is_per_address(app):
 def test_booking_with_a_bad_email_is_rejected_before_it_is_stored(app, reserve):
     _item(app)
     reserve("trailer", renter_email="victim@example.com\nbcc: evil@x.com",
-            start_date="2026-09-01", end_date="2026-09-03")
+            start_date="2098-09-01", end_date="2098-09-03")
     assert _bookings(app) == []
 
 
 def test_disposable_email_rejected_only_when_enabled(app, reserve):
     _item(app)
     reserve("trailer", renter_email="throwaway@mailinator.com",
-            start_date="2026-09-01", end_date="2026-09-03")
+            start_date="2098-09-01", end_date="2098-09-03")
     assert len(_bookings(app)) == 1                  # off by default
     app.config["BLOCK_DISPOSABLE_EMAIL"] = True
     _item(app, "Van", "van")
     reserve("van", renter_email="throwaway@mailinator.com",
-            start_date="2026-09-01", end_date="2026-09-03")
+            start_date="2098-09-01", end_date="2098-09-03")
     assert len(_bookings(app)) == 1                  # still 1 — the van was refused
 
 
@@ -725,7 +725,7 @@ def test_direct_post_without_a_stamp_is_rejected(app, client):
     client.post("/item/trailer", data={
         "renter_name": "vhnnhidmrs", "renter_contact": "tyoyiosrzf",
         "renter_email": "jewflgkv@immenseignite.info", "agree": "1",
-        "start_date": "2026-09-01", "end_date": "2026-09-03"},
+        "start_date": "2098-09-01", "end_date": "2098-09-03"},
         follow_redirects=True)
     assert _bookings(app) == []
 
@@ -733,7 +733,7 @@ def test_direct_post_without_a_stamp_is_rejected(app, client):
 def test_instant_submission_is_rejected(app, reserve, stamp):
     _item(app)
     r = reserve("trailer", form_stamp=stamp(seconds_ago=0),
-                start_date="2026-09-01", end_date="2026-09-03")
+                start_date="2098-09-01", end_date="2098-09-03")
     assert _bookings(app) == []
     # Vague on purpose — naming the control is free tuning feedback for a prober.
     assert b"honeypot" not in r.data.lower() and b"too fast" not in r.data.lower()
@@ -743,14 +743,14 @@ def test_stale_form_gets_a_helpful_message(app, reserve, stamp):
     """Someone who left the tab open overnight is not an attacker."""
     _item(app)
     r = reserve("trailer", form_stamp=stamp(seconds_ago=60 * 60 * 24),
-                start_date="2026-09-01", end_date="2026-09-03")
+                start_date="2098-09-01", end_date="2098-09-03")
     assert b"went stale" in r.data
 
 
 def test_honeypot_blocks_a_bot_that_fills_everything(app, reserve):
     _item(app)
     reserve("trailer", website="http://spam.example",
-            start_date="2026-09-01", end_date="2026-09-03")
+            start_date="2098-09-01", end_date="2098-09-03")
     assert _bookings(app) == []
 
 
@@ -762,7 +762,7 @@ def test_reserve_flood_is_rate_limited(app, reserve):
         _item(app, f"Item {i}", slug)
     for i in range(21):
         reserve(("a", "b", "c")[i % 3], renter_email=f"bot{i}@example.com",
-                start_date="2026-09-01", end_date="2026-09-03")
+                start_date="2098-09-01", end_date="2098-09-03")
     assert len(_bookings(app)) == limits.RATE_LIMITS["reserve_burst"][0]
 
 
@@ -770,7 +770,7 @@ def test_per_item_limit_stops_one_item_being_swamped(app, reserve):
     _item(app)
     for i in range(3):
         reserve("trailer", renter_email=f"p{i}@example.com",
-                start_date=f"2026-09-0{i+1}", end_date=f"2026-09-0{i+2}")
+                start_date=f"2098-09-0{i+1}", end_date=f"2098-09-0{i+2}")
     assert len(_bookings(app)) == limits.RATE_LIMITS["reserve_item"][0]
 
 
@@ -778,7 +778,7 @@ def test_rate_limit_is_logged_with_the_offending_ip(app, reserve, capsys):
     _item(app)
     for i in range(5):
         reserve("trailer", renter_email=f"p{i}@example.com",
-                start_date=f"2026-09-0{i+1}", end_date=f"2026-09-0{i+2}")
+                start_date=f"2098-09-0{i+1}", end_date=f"2098-09-0{i+2}")
     events = [json.loads(l) for l in capsys.readouterr().out.splitlines()
               if l.startswith("{")]
     limited = [e for e in events if e["event"] == "rate_limited"]
@@ -790,7 +790,7 @@ def test_logs_never_contain_renter_details(app, reserve, capsys):
     _item(app)
     reserve("trailer", renter_name="Sam Secret", renter_email="sam@private.example",
             renter_contact="555-867-5309", notes="my address is 12 Elm St",
-            start_date="2026-09-01", end_date="2026-09-03")
+            start_date="2098-09-01", end_date="2098-09-03")
     out = capsys.readouterr().out
     for secret in ("Sam Secret", "sam@private.example", "867-5309", "12 Elm St"):
         assert secret not in out, secret
@@ -802,7 +802,7 @@ def test_gibberish_booking_from_the_attack_is_rejected(app, reserve):
     """The literal payload from the August 18 flood."""
     _item(app)
     reserve("trailer", renter_name="vhnnhidmrs", renter_contact="tyoyiosrzf",
-            renter_email="", start_date="2026-09-01", end_date="2026-09-03")
+            renter_email="", start_date="2098-09-01", end_date="2098-09-03")
     assert _bookings(app) == []
 
 
@@ -810,7 +810,7 @@ def test_a_booking_needs_at_least_one_way_to_reach_you(app, reserve):
     """Email and phone are each optional, but not both — the form's own rule."""
     _item(app)
     reserve("trailer", renter_email="", renter_contact="",
-            start_date="2026-09-01", end_date="2026-09-03")
+            start_date="2098-09-01", end_date="2098-09-03")
     assert _bookings(app) == []
 
 
@@ -818,7 +818,7 @@ def test_phone_only_booking_is_accepted(app, reserve):
     """Email is optional here; a phone number alone must still work."""
     _item(app)
     reserve("trailer", renter_email="", renter_contact="(555) 123-4567",
-            start_date="2026-09-01", end_date="2026-09-03")
+            start_date="2098-09-01", end_date="2098-09-03")
     assert len(_bookings(app)) == 1
 
 
@@ -836,16 +836,16 @@ def test_past_dates_are_rejected_server_side(app, reserve):
 def test_absurdly_long_rental_is_rejected(app, reserve):
     """One POST could otherwise take an item off the calendar for years."""
     _item(app)
-    reserve("trailer", start_date="2026-09-01", end_date="2099-09-01")
+    reserve("trailer", start_date="2098-09-01", end_date="2099-09-01")
     assert _bookings(app) == []
 
 
 def test_duplicate_request_for_the_same_window_is_absorbed(app, reserve):
     _item(app)
     reserve("trailer", renter_email="sam@example.com",
-            start_date="2026-09-01", end_date="2026-09-03")
+            start_date="2098-09-01", end_date="2098-09-03")
     r = reserve("trailer", renter_email="SAM@example.com ",
-                start_date="2026-09-01", end_date="2026-09-03")
+                start_date="2098-09-01", end_date="2098-09-03")
     assert len(_bookings(app)) == 1
     assert b"already requested" in r.data
 
@@ -854,9 +854,9 @@ def test_different_dates_are_not_a_duplicate(app, reserve):
     """Same person, different window, is a real second booking."""
     _item(app)
     reserve("trailer", renter_email="sam@example.com",
-            start_date="2026-09-01", end_date="2026-09-03")
+            start_date="2098-09-01", end_date="2098-09-03")
     reserve("trailer", renter_email="sam@example.com",
-            start_date="2026-10-01", end_date="2026-10-03")
+            start_date="2098-10-01", end_date="2098-10-03")
     assert len(_bookings(app)) == 2
 
 
@@ -868,7 +868,7 @@ def test_a_normal_booking_still_sails_through(app, reserve):
                 renter_email="ana.obrien+rent@example.co.uk",
                 renter_contact="+1 (555) 123-4567",
                 notes="Thanks! Picking up after 5 — see http://example.com/map",
-                start_date="2026-09-01", end_date="2026-09-04")
+                start_date="2098-09-01", end_date="2098-09-04")
     assert r.status_code == 200
     assert len(_bookings(app)) == 1
 
