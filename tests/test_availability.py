@@ -3,8 +3,9 @@ from datetime import date
 
 import pytest
 
-from app.availability import (Interval, find_conflicts, intervals_overlap,
-                              nights_between, outstanding_by_renter, quote_amount)
+from app.availability import (BOOKING_TRANSITIONS, Interval, find_conflicts,
+                              intervals_overlap, nights_between,
+                              outstanding_by_renter, quote_amount)
 
 d = date
 
@@ -99,3 +100,23 @@ def test_to_date_rejects_junk():
     for bad in ("", "not-a-date", "2026-13-45"):
         with pytest.raises(ValueError):
             to_date(bad)
+
+
+# ---- BOOKING_TRANSITIONS ---------------------------------------------------
+
+def test_booking_transitions_allow_expected_paths():
+    assert "confirmed" in BOOKING_TRANSITIONS["requested"]
+    assert "cancelled" in BOOKING_TRANSITIONS["requested"]
+    assert "returned" in BOOKING_TRANSITIONS["confirmed"]
+    assert "cancelled" in BOOKING_TRANSITIONS["confirmed"]
+    assert BOOKING_TRANSITIONS["returned"] == frozenset()
+
+
+def test_booking_cancelled_can_undo_to_requested():
+    """An admin can undo a mistaken cancellation."""
+    assert "requested" in BOOKING_TRANSITIONS["cancelled"]
+
+
+def test_booking_returned_is_terminal():
+    """Returned bookings cannot transition anywhere."""
+    assert BOOKING_TRANSITIONS["returned"] == frozenset()
