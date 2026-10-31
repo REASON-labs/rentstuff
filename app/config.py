@@ -8,7 +8,7 @@ _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-change-me")
+    SECRET_KEY = os.environ.get("SECRET_KEY", "")
     DATABASE = os.environ.get(
         "RENTSTUFF_DB", os.path.join(_BASE, "instance", "rentstuff.sqlite3")
     )

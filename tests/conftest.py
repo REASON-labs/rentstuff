@@ -17,9 +17,13 @@ def app(tmp_path):
     class TestConfig(Config):
         TESTING = True
         DATABASE = path
-        SECRET_KEY = "test"
+        SECRET_KEY = "test-key-not-default"
         WTF_CSRF_ENABLED = False
         ADMIN_USERNAME = "admin"
+        # Provide a real hash so the startup check doesn't flag the default
+        # password.  The hash is for "test" — the password the app would
+        # otherwise derive from the default "changeme".
+        ADMIN_PASSWORD_HASH = "scrypt:32768:8:1$za0WN8p6rPGk7LnM$0a6e818fdccb246d9d85cf4b66a7e6fc63de039d03b31d1afed00ce656bd3cd216105611c34c403d1d9775e3366eb7a2c0772fe4dd7e85665bab24f45612a211"
         # Per-test upload dir. Config derives UPLOAD_DIR from the *base*
         # DATABASE at import time, so without this override every test shares
         # one directory and they leak files into each other.
