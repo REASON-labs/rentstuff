@@ -17,7 +17,7 @@
 
       <div class="actions" style="margin-top:.75rem">
         {% for s in ['confirmed','returned','cancelled'] %}
-          {% if s in (BOOKING_TRANSITIONS.get(b['status'], set())) %}
+          {% if s in (BOOKING_TRANSITIONS.get(b['status'], [])) %}
             <form class="inline-form" method="post" action="{{ url_for('admin.booking_status', booking_id=b['id']) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="status" value="{{ s }}">

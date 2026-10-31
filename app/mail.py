@@ -131,10 +131,11 @@ def notify_confirmed(booking_id):
         return
     c = _ctx(b, models.get_item(b["item_id"]))
     if b["renter_email"]:
+        deposit_extra = (f" plus a ${c['deposit']} deposit" if b['deposit_amount'] else "")
         send_email(b["renter_email"], f"Confirmed — {c['item']}",
                    f"Hi {c['renter']},\n\nYou're confirmed for {c['item']}, "
                    f"{c['start']} to {c['end']}. Total ${c['amount']}"
-                   f"{f' plus a ${c['deposit']} deposit' if b['deposit_amount'] else ''}. "
+                   f"{deposit_extra}. "
                    f"See you at pickup!")
     admin = _admin_email()
     if admin:

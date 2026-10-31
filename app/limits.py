@@ -22,7 +22,7 @@ RATE_LIMITS = {
     "reserve_item":        (2,    3600),    # 2 / hour against ONE item
     "login_failed":        (5,    900),     # 5 bad passwords / 15 min
     # Admin endpoints: stricter than public because the admin is authenticated.
-    "admin_write":         (30,   3600),    # 30 write actions / hour per admin
+    "admin_write":         (300,  3600),    # 300 write actions / hour per admin
 }
 
 # Outbound mail per recipient address per day. A booking generates up to three
